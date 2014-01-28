@@ -10,7 +10,6 @@ struct parameter
 	double gamma;
 	double epsilon;
 	double sigma;
-	double * delta;
 
 	double sub_h;
 	double sub_count;
@@ -25,11 +24,6 @@ struct parameter
 		epsilon = 1;
 		sigma = 1;
 
-		delta = new double[m];
-		for(int i = 0; i < m; ++i)
-		{
-			delta[i] = i;
-		}
 		sub_h = 1;
 		sub_count = 31;
 	};

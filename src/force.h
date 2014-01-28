@@ -9,7 +9,6 @@ void force(	double * const out_x,
 						const double * const in_x,
 						const double * const in_y,
 						const double * const in_s,
-						const parameter h_p,
-						const parameter * const d_p);
-
+						const double * const delta,
+						const parameter p);
 #endif

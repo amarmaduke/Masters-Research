@@ -3,7 +3,8 @@
 #include <iostream>
 #include <stdio.h>
 
-#define _DEBUG_
+#define _ERROR_
+//#define _DEBUG_
 
 #ifdef _DEBUG_
 	#define debug(x) x
@@ -22,8 +23,26 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 		if (abort) exit(code);
 	}
 }
+
+#define checkKernel() { kernel_assert(__FILE__,__LINE__); }
+inline void kernel_assert(char *file, int line)
+{
+	cudaError_t err = cudaGetLastError();
+	if (cudaSuccess != err) {
+		fprintf (stderr, "Cuda error in file '%s' in line %i : %s.\n",
+			file,line, cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+	err = cudaThreadSynchronize();
+	if (cudaSuccess != err) {
+		fprintf (stderr, "Cuda error in file '%s' in line %i : %s.\n",
+			file, line, cudaGetErrorString( err));
+		exit(EXIT_FAILURE);
+	}
+}
 #else
-#define checkError(ans) ans
+	#define checkError(ans) ans
+	#define checkKernel()
 #endif
 
 
@@ -31,12 +50,12 @@ __global__
 void compute_lengths(	double * const lens, 
 											const double * const in_x,
 											const double * const in_y,
-											const parameter * const p)
+											const double * const delta,
+											const parameter p)
 {
 	int j = threadIdx.x;
 	int i = threadIdx.y;
-	int n = p->n;
-	const double * const delta = p->delta;
+	int n = p.n;
 
 	int index = j*n + i;
 
@@ -46,7 +65,7 @@ void compute_lengths(	double * const lens,
 	double xp = i == 0 ? delta[j] : in_x[index-1];
 	double yp = i == 0 ? 0 : in_y[index-1];
 
-	double l = (xp-x)*(xp-x)+(yp-y)*(yp-y);
+	double l = sqrt((xp-x)*(xp-x)+(yp-y)*(yp-y));
 
 	lens[index] = l;
 
@@ -57,6 +76,7 @@ void compute_lengths(	double * const lens,
 		"l: %f\n",blockIdx.x,blockIdx.y,blockIdx.z,
 		threadIdx.x,threadIdx.y,threadIdx.z,index,x,y,xp,yp,l
 	);)
+
 }
 
 __global__
@@ -65,17 +85,17 @@ void compute_fiber_dependent(	double * const out_x,
 															const double * const in_x,
 															const double * const in_y,
 															const double * const lens,
-															const parameter * const p)
+															const double * const delta,
+															const parameter p)
 {
 	int j = threadIdx.x; // What fiber we're on
 	int i = threadIdx.y; // What particle it is
-	int n = p->n;
-	double beta = p->beta;
-	double len = p->len;
-	double gamma = p->gamma;
-	double epsilon = p->epsilon;
-	double sigma = p->sigma;
-	const double* const delta = p->delta;
+	int n = p.n;
+	double beta = p.beta;
+	double len = p.len;
+	double gamma = p.gamma;
+	double epsilon = p.epsilon;
+	double sigma = p.sigma;
 
 	int index = j*n + i;
 
@@ -213,7 +233,7 @@ void compute_fiber_dependent(	double * const out_x,
 		xpp,xp,x,xn,xnn,ypp,yp,y,yn,ynn,lp,l,ln,lnn,
 		bending_x,bending_y,extensible_x,extensible_y,
 		vdW_y,total_force_x,total_force_y
-	);) //*/
+	);) 
 
 	out_x[index] = total_force_x;
 	out_y[index] = total_force_y;
@@ -228,17 +248,17 @@ void compute_n_body_vdw(double * const out_x,
 												const double * const in_x,
 												const double * const in_y,
 												const double * const in_s,
-												const parameter * const p)
+												const parameter p)
 {
 	int j = threadIdx.x; // What fiber we're on
 	int i = threadIdx.y; // What particle it is
 
-	double n = p->n;
-	double m = p->m;
-	double epsilon = p->epsilon;
-	double sigma = p->sigma;
-	double sub_h = p->sub_h;
-	double sub_count = p->sub_count;
+	double n = p.n;
+	double m = p.m;
+	double epsilon = p.epsilon;
+	double sigma = p.sigma;
+	double sub_h = p.sub_h;
+	double sub_count = p.sub_count;
 
 	int index = j*n + i;
 
@@ -280,7 +300,7 @@ void compute_n_body_vdw(double * const out_x,
 				"Index: %d, Index:o: %d\n"
 				"vdW_x: %f, vdW_y: %f\n",
 				index,k,LJval*temp_x,LJval*temp_y
-			);) //*/
+			);) //
 		}
 	}
 
@@ -328,12 +348,12 @@ void combine(	double * const out_x,
 							const double * const f_1y,
 							const double * const f_2x,
 							const double * const f_2y,
-							const parameter * const p)
+							const parameter p)
 {
 	int j = threadIdx.x; // What fiber we're on
 	int i = threadIdx.y; // What particle it is
 
-	double n = p->n;
+	double n = p.n;
 	int index = j*n + i;
 
 	out_x[index] = f_1x[index] + f_2x[index];
@@ -348,6 +368,7 @@ void combine(	double * const out_x,
 }
 
 
+/*
 __global__
 void print_all(double * out_x,
 							 double * out_y,
@@ -431,7 +452,7 @@ void print_all(double * out_x,
 	} printf("\n");
 
 }
-
+*/
 
 void force(	double * const out_x,
 						double * const out_y,
@@ -439,13 +460,11 @@ void force(	double * const out_x,
 						const double * const in_x,
 						const double * const in_y,
 						const double * const in_s,
-						const parameter h_p,
-						const parameter * const d_p)
+						const double * const delta,
+						const parameter p)
 {
-	dim3 grid(1,1,1), blocks(h_p.m,h_p.n,1);
-	int size = h_p.n * h_p.m;
-
-	printf("Hello World\n");
+	dim3 grid(1,1,1), blocks(p.m,p.n,1);
+	int size = p.n * p.m;
 
 	double *lens, *f_1x, *f_1y, *f_2x, *f_2y;
 	checkError(cudaMalloc(&lens,sizeof(double)*size));
@@ -464,21 +483,21 @@ void force(	double * const out_x,
 	checkError(cudaMemset(f_2y,0,sizeof(double)*size));
 
 
-	print_all<<<1,1>>>(out_x,out_y,out_s,in_x,in_y,in_s,lens,f_1x,f_1y,f_2x,f_2y,d_p);
+	//print_all<<<1,1>>>(out_x,out_y,out_s,in_x,in_y,in_s,lens,f_1x,f_1y,f_2x,f_2y,d_p);
 
-	//printf("Hello World\n");
 	int i = 0;
 
+	checkKernel()
+	compute_lengths<<<grid,blocks>>>(lens,in_x,in_y,delta,p);
+	checkKernel()
+	compute_fiber_dependent<<<grid,blocks>>>(f_1x,f_1y,in_x,in_y,lens,delta,p);
+	checkKernel()
+	compute_n_body_vdw<<<grid,blocks>>>(f_2x,f_2y,out_s,in_x,in_y,in_s,p);
+	checkKernel()
+	combine<<<grid,blocks>>>(out_x,out_y,f_1x,f_1y,f_2x,f_2y,p);
+	checkKernel()
 
-	compute_lengths<<<grid,blocks>>>(lens,in_x,in_y,d_p);
-	compute_fiber_dependent<<<grid,blocks>>>(f_1x,f_1y,in_x,in_y,lens,d_p);
-	compute_n_body_vdw<<<grid,blocks>>>(f_2x,f_2y,out_s,in_x,in_y,in_s,d_p);
-	combine<<<grid,blocks>>>(out_x,out_y,f_1x,f_1y,f_2x,f_2y,d_p);
-
-	print_all<<<1,1>>>(out_x,out_y,out_s,in_x,in_y,in_s,lens,f_1x,f_1y,f_2x,f_2y,d_p);
-
-	cudaDeviceSynchronize();
-	scanf("%d",&i);
+	//print_all<<<1,1>>>(out_x,out_y,out_s,in_x,in_y,in_s,lens,f_1x,f_1y,f_2x,f_2y,d_p);
 
 	checkError(cudaFree(lens));
 	checkError(cudaFree(f_1x));

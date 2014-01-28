@@ -8,6 +8,7 @@
 #define cudaD2H cudaMemcpyDeviceToHost
 #define cudaD2D cudaMemcpyDeviceToDevice
 
+#ifdef _ERROR_
 #define checkError(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 {
@@ -18,6 +19,9 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 		if (abort) exit(code);
 	}
 }
+#else
+	#define checkError(ans) ans
+#endif
 
 __global__
 void update(double * const update_x,
@@ -42,18 +46,18 @@ std::vector<triple>
 eulers_method(const double * const x,
 							const double * const y,
 							const double * const s,
+							const double * const delta,
 							double t_start,
 							double t_end,
 							double h,
 							int save,
-							parameter& h_p,
-							parameter* d_p)
+							parameter p)
 {
 	std::vector<triple> store;
 
 	double *force_x, *force_y, *force_s;
 	double *update_x, *update_y, *update_s;
-	int size = h_p.n * h_p.m;
+	int size = p.n * p.m;
 
 	checkError(cudaMalloc(&force_x,sizeof(double)*size));
 	checkError(cudaMalloc(&force_y,sizeof(double)*size));
@@ -100,7 +104,7 @@ eulers_method(const double * const x,
 			std::cout << std::endl;
 		}
 
-		force(force_x,force_y,force_s,update_x,update_y,update_s,h_p,d_p);
+		force(force_x,force_y,force_s,update_x,update_y,update_s,delta,p);
 		printf("Force Finished");
 		update<<<1,size>>>(update_x,update_y,update_s,force_x,force_y,force_s,h);
 
