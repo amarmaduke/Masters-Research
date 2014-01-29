@@ -23,7 +23,7 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 	#define checkError(ans) ans
 #endif
 
-void snapshot(vector<triple> save, double *x, double *y, double *s)
+void snapshot(std::vector<triple>& save, double *x, double *y, double *s, int size)
 {
 	double *first = new double[size];
 	double *second = new double[size];
@@ -120,7 +120,7 @@ eulers_method(const double * const x,
 	{
 		if(count % sampling_rate == 0)
 		{
-			snapshot(store,update_x,update_y,update_s);
+			snapshot(store,update_x,update_y,update_s,size);
 
 			printf("current time: %f, final time: %f",t,t_end);
 			std::cout << std::endl;
@@ -133,7 +133,7 @@ eulers_method(const double * const x,
 		t+=h;
 	}
 
-	snapshot(store,update_x,update_y,update_s);
+	snapshot(store,update_x,update_y,update_s,size);
 
 	checkError(cudaStreamDestroy(s1));
 	checkError(cudaStreamDestroy(s2));
@@ -202,7 +202,7 @@ euler_heun_adaptive(const double * const x,
 	{
 		if(count % sampling_rate == 0)
 		{
-			snapshot(store,update_x,update_y,update_s);
+			snapshot(store,update_x,update_y,update_s,size);
 
 			printf("current time: %f, final time: %f",t,t_end);
 			std::cout << std::endl;
@@ -221,7 +221,7 @@ euler_heun_adaptive(const double * const x,
 		t+=h;
 	}
 
-	snapshot(store,update_x,update_y,update_s);
+	snapshot(store,update_x,update_y,update_s,size);
 
 	checkError(cudaFree(temp_x));
 	checkError(cudaFree(temp_y));
