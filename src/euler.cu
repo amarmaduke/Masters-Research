@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <vector>
 #include <iostream>
+#include <cuda_runtime.h>
+#include "cublas_v2.h"
 
 #define cudaH2D cudaMemcpyHostToDevice
 #define cudaD2H cudaMemcpyDeviceToHost
@@ -52,6 +54,15 @@ void vector_sum(double * const out_x,
 	out_x[index] = a_x[index] + b_x[index];
 	out_y[index] = a_y[index] + b_y[index];
 	out_s[index] = a_s[index] + b_s[index];
+}
+
+__global__
+void vector_subtraction(double * const out,
+												const double * const a,
+												const double * const b)
+{
+	int index = threadIdx.x;
+	out[index] = a[x] - b[x];
 }
 
 __global__
@@ -186,6 +197,11 @@ euler_heun_adaptive(const double * const x,
 	checkError(cudaMalloc(&k2_y,sizeof(double)*size));
 	checkError(cudaMalloc(&k2_s,sizeof(double)*size));
 
+	double *vec, *euler, *heun;
+	checkError(cudaMalloc(&euler,2*sizeof(double)*size+2));
+	checkError(cudaMalloc(&heun,2*sizeof(double)*size+2));
+	checkError(cudaMalloc(&vec,2*sizeof(double)*size+2));
+
 	double t = t_start;
 
 	int total_points = (int)((t_end - t_start)/h + 1);
@@ -196,6 +212,8 @@ euler_heun_adaptive(const double * const x,
 		sampling_rate = 1;
 	}
 	int count = 0;
+
+	cublasHandle_t handle;
 
 	double error = 100;
 	while(t <= t_end)
@@ -210,11 +228,30 @@ euler_heun_adaptive(const double * const x,
 
 		while(error > tolerance)
 		{
+			// Euler Step
 			force(k1_x,k1_y,k1_s,update_x,update_y,update_s,delta,p);
 			update<<<1,size>>>(temp_x,temp_y,temp_s,k1_x,k1_y,k1_s,h);
+
+			checkError(cudaMemcpy(euler,temp_x,sizeof(double)*size,cudaD2D));
+			checkError(cudaMemcpy(euler+size,temp_y,sizeof(double)*size,cudaD2D));
+			checkError(cudaMemcpy(euler+size*2,temp_s,sizeof(double)*2,cudaD2D));
+
+			// Heun Step
 			force(k2_s,k2_y,k2_s,temp_x,temp_y,temp_s,delta,p);
 			vector_sum<<<1,size>>>(temp_x,temp_y,temp_s,k1_x,k1_y,k1_s,k2_x,k2_y,k2_s);
 			update<<<1,size>>>(update_x,update_y,update_s,temp_x,temp_y,temp_s,h/2);
+
+			checkError(cudaMemcpy(heun,update_x,sizeof(double)*size,cudaD2D));
+			checkError(cudaMemcpy(heun+size,update_y,sizeof(double)*size,cudaD2D));
+			checkError(cudaMemcpy(heun+size*2,update_s,sizeof(double)*2,cudaD2D));
+
+			// Error Handling
+			vector_subtraction<<<1,size>>>(vec,euler,heun);
+			cublasCreate(&handle);
+			cublasSnrm2(handle,2*size+2,vec,1,&error); // Euclidean Norm
+
+			if(error > tolerance)
+				h /= 2;
 		}
 
 		++count;
