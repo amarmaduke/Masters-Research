@@ -3,6 +3,8 @@
 #include "euler.h"
 #include "parameter.h"
 #include <stdio.h>
+#include <cuda_runtime.h>
+#include "cublas_v2.h"
 
 #define cudaH2D cudaMemcpyHostToDevice
 #define cudaD2H cudaMemcpyDeviceToHost
@@ -27,6 +29,7 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 
 void print(vector<triple> in, int s)
 {
+	cublasStatus_t stat;
 	for(int i = 0; i < in.size(); ++i)
 	{
 		triple p = in[i];
