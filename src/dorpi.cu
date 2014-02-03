@@ -2,6 +2,7 @@
 #include "force.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <vector>
 #include <iostream>
 #include <cuda_runtime.h>
@@ -26,7 +27,7 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
   #define checkError(ans) ans
 #endif
 
-void snapshot(std::vector<triple>& save, double *x, double *y, double *s, int size)
+void SNAPSHOT(std::vector<triple>& save, double *x, double *y, double *s, int size)
 {
   double *first = new double[size];
   double *second = new double[size];
@@ -46,10 +47,11 @@ void snapshot(std::vector<triple>& save, double *x, double *y, double *s, int si
 double * linc(cublasHandle_t handle, int count, int size, ...)
 {
   va_list ap;
-  double ** vectors, * constants, * iter;
-  cudaMalloc(&vectors, sizeof(double *)*count);
+  double ** vectors, * constants;
+  int * iter;
+	cudaMalloc(&vectors, sizeof(double *)*count);
   cudaMalloc(&constants, sizeof(double)*count);
-  iter = new double[count];
+	iter = new int[count];
 
   // Parse variadic input and store copies
   for(int i = 0; i < count; ++i)
@@ -64,19 +66,19 @@ double * linc(cublasHandle_t handle, int count, int size, ...)
     // Grab vector
     cudaMalloc(&vectors[i], sizeof(double)*size);
     double * v_temp = va_arg(ap, double *);
-    cublasDcopy(handle, size, v_temp, vectors[i]);
+    cublasDcopy(handle, size, v_temp, 1, vectors[i], 1);
   }
   va_end(ap);
 
   // Compute linear compination
-  int N = n, m, j = 0;
+  int N = count, m, j = 0;
   while(N > 1)
   {
     m = N % 2 == 0 ? N : N - 1;
     for(int i = 0; i < m; i+=2, ++j)
     {
-      double alpha = constants[iter[i+1]]/constants[iter[i]];
-      cublasDaxpy(handle, n, alpha, vectors[iter[i+1]], 1, vectors[iter[i]], 1);
+      double a = constants[iter[i+1]]/constants[iter[i]];
+      cublasDaxpy(handle, count, &a, vectors[iter[i+1]], 1, vectors[iter[i]], 1);
       iter[j] = iter[i];
     }
     if(N % 2 != 0)
@@ -170,10 +172,10 @@ void construct_error_step(double * const out_x,
 {
   int index = threadIdx.x;
   out_x[index] = b[0]*k1_x[index] + b[1]*k2_x[index] + b[2]*k3_x[index]
-                 + b[3]*k4_x[index] + b[4]*k5_x[index] + b[5]*k6_x[index];
+                 + b[3]*k4_x[index] + b[4]*k5_x[index] + b[5]*k6_x[index]
                  + b[6]*k7_x[index];
   out_y[index] = b[0]*k1_y[index] + b[1]*k2_y[index] + b[2]*k3_y[index]
-                 + b[3]*k4_y[index] + b[4]*k5_y[index] + b[5]*k6_y[index];
+                 + b[3]*k4_y[index] + b[4]*k5_y[index] + b[5]*k6_y[index]
                  + b[6]*k7_y[index];
   out_s[0] = b[0]*k1_s[0] + b[1]*k2_s[0] + b[2]*k3_s[0] + b[3]*k4_s[0]
                  + b[4]*k5_s[0] + b[5]*k6_s[0] + b[6]*k7_s[0];
@@ -263,7 +265,7 @@ dormand_prince( const double * const x,
   a5[0] = 9017/3168; a5[1] = -355/33; a5[2] = 46732/5247; a5[3] = 49/176;
     a5[4] = -5103/18656; a5[5] = a5[6] = 0;
   a6[0] = 35/384; a6[1] = 0; a6[2] = 500/1113; a6[3] = 125/192;
-    a6[4] -2187/6784; a6[5] = 11/84; a6[6] = 0;
+    a6[4] = -2187/6784; a6[5] = 11/84; a6[6] = 0;
   a7[0] = 5179/57600; a7[1] = 0; a7[2] = 7571/16695; a7[3] = 393/640;
     a7[4] = -92097/339200; a7[5] = 187/2100; a7[6] = 1/40;
 
@@ -285,7 +287,7 @@ dormand_prince( const double * const x,
   {
     if(count % sampling_rate == 0)
     {
-      snapshot(store,update_x,update_y,update_s,size);
+      SNAPSHOT(store,update_x,update_y,update_s,size);
 
       printf("current time: %f, final time: %f",t,t_end);
       std::cout << std::endl;
@@ -340,7 +342,7 @@ dormand_prince( const double * const x,
 
       construct_error_step<<<1,size>>>
           (err_x,err_y,err_s,k1_x,k1_y,k1_s,k2_x,k2_y,k2_s,k3_x,k3_y,k3_s,
-          k4_x,k4_y,k4_s,k5_x,k5_y,k5_s,k6_x,k6_y,k6_s,k7_x,k7_y,k7_s,a6,h);
+          k4_x,k4_y,k4_s,k5_x,k5_y,k5_s,k6_x,k6_y,k6_s,k7_x,k7_y,k7_s,a6);
       /*
       checkError(cudaMemcpy(heun,update_x,sizeof(double)*size,cudaD2D));
       checkError(cudaMemcpy(heun+size,update_y,sizeof(double)*size,cudaD2D));
@@ -359,7 +361,7 @@ dormand_prince( const double * const x,
     t+=h;
   }
 
-  snapshot(store,update_x,update_y,update_s,size);
+  SNAPSHOT(store,update_x,update_y,update_s,size);
 
   // Wall of Destruction
 
@@ -375,9 +377,9 @@ dormand_prince( const double * const x,
   checkError(cudaFree(k2_x)); checkError(cudaFree(k7_x));
   checkError(cudaFree(k2_y)); checkError(cudaFree(k7_x));
   checkError(cudaFree(k2_s)); checkError(cudaFree(k7_x));
-  checkError(cudaFree(k4_x)); checkError(cudaFree(k8_x));
-  checkError(cudaFree(k4_y)); checkError(cudaFree(k8_x));
-  checkError(cudaFree(k4_s)); checkError(cudaFree(k8_x));
+  checkError(cudaFree(k4_x));
+  checkError(cudaFree(k4_y));
+  checkError(cudaFree(k4_s));
   checkError(cudaFree(a1)); checkError(cudaFree(a4)); checkError(cudaFree(a6));
   checkError(cudaFree(a2)); checkError(cudaFree(a5)); checkError(cudaFree(a6));
   checkError(cudaFree(a3)); checkError(cudaFree(zero));
