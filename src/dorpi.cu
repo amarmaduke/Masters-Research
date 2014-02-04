@@ -41,51 +41,88 @@ void SNAPSHOT(std::vector<triple>& save, double *x, double *y, double *s, int si
   save.push_back(temp_trip);
 }
 
+template<typename T>
+void print_v(int n, T * x)
+{
+	std::cout << "(";
+	for(int i = 0; i < n; ++i)
+	{
+		std::cout << x[i];
+		if(i + 1 != n)
+			std::cout << " ";
+	}
+	std::cout << ")";
+}
+
 // count = # of vectors passed to linc
 // size = # of elements in each vector
 // ... is assumed to have count (constant,vector) pairs
 double * linc(cublasHandle_t handle, int count, int size, ...)
 {
   va_list ap;
-  double ** vectors, * constants;
+	double ** vectors, * constants;
   int * iter;
-	cudaMalloc(&vectors, sizeof(double *)*count);
-  cudaMalloc(&constants, sizeof(double)*count);
+	
+	vectors = new double*[count];
+	constants = new double[count];
 	iter = new int[count];
 
   // Parse variadic input and store copies
-  for(int i = 0; i < count; ++i)
+  va_start(ap,size);
+	for(int i = 0; i < count; ++i)
   {
     // Setup iterator
     iter[i] = i;
 
     // Grab constant
-    double c_temp = va_arg(ap, double);
-    constants[i] = c_temp;
+		double c_temp = va_arg(ap, double);
+		constants[i] = c_temp;
 
     // Grab vector
-    cudaMalloc(&vectors[i], sizeof(double)*size);
-    double * v_temp = va_arg(ap, double *);
-    cublasDcopy(handle, size, v_temp, 1, vectors[i], 1);
-  }
+    checkError(cudaMalloc(&vectors[i], sizeof(double)*size));
+		double * v_temp = va_arg(ap, double *);
+		
+		cublasDcopy(handle, size, v_temp, 1, vectors[i], 1);
+	}
   va_end(ap);
 
   // Compute linear compination
   int N = count, m, j = 0;
   while(N > 1)
   {
+		std::cout << "iter: " << std::endl;
+		print_v(count,iter);
+		std::cout << std::endl;
     m = N % 2 == 0 ? N : N - 1;
     for(int i = 0; i < m; i+=2, ++j)
     {
       double a = constants[iter[i+1]]/constants[iter[i]];
-      cublasDaxpy(handle, count, &a, vectors[iter[i+1]], 1, vectors[iter[i]], 1);
+      
+			double *x, *y;
+			x = new double[size]; y = new double[size];
+			cudaMemcpy(x,vectors[iter[i+1]],sizeof(double)*size,cudaD2H);
+			cudaMemcpy(y,vectors[iter[i]],sizeof(double)*size,cudaD2H);
+			
+			std::cout << " Inner linc Loop: " << std::endl;
+			std::cout << a;
+			print_v(size,x);
+			std::cout << " + ";
+			print_v(size,y);
+			std::cout << std::endl;
+
+			cublasDaxpy(handle, count, &a, vectors[iter[i+1]], 1, vectors[iter[i]], 1);
       iter[j] = iter[i];
     }
     if(N % 2 != 0)
-      iter[j+1] = iter[m];
+      iter[j] = iter[m];
     N = (N+1)/2;
     j = 0;
+		std::cout << " Outer liner loop: " << std::endl;
+		std::cout << "N: " << N << std::endl;
   }
+	
+	double a = constants[iter[0]];
+	cublasDscal(handle, count, &a, vectors[0], 1);
 
   // Grab output and clean
   double * out = vectors[0];
@@ -93,11 +130,76 @@ double * linc(cublasHandle_t handle, int count, int size, ...)
   {
     cudaFree(vectors[i]);
   }
-  cudaFree(vectors);
-  cudaFree(constants);
+  delete constants;
   delete iter;
+	delete vectors;
 
   return out;
+}
+
+void test()
+{
+	int N = 3;
+	double *h_x, *h_y, *h_z, *h_a, *h_b, *h_r;
+	double *d_x, *d_y, *d_z, *d_a, *d_b, *d_r;
+
+	h_x = new double[N];
+	h_y = new double[N];
+	h_z = new double[N];
+	h_a = new double[N];
+	h_b = new double[N];
+	h_r = new double[N];
+
+	for(int i = 0; i < N; ++i)
+	{
+		h_x[i] = 1;
+		h_y[i] = 1;
+		h_z[i] = 1;
+		h_a[i] = 1;
+		h_b[i] = 1;
+	}
+
+	cudaMalloc(&d_x, sizeof(double)*N);
+	cudaMalloc(&d_y, sizeof(double)*N);
+	cudaMalloc(&d_z, sizeof(double)*N);
+	cudaMalloc(&d_a, sizeof(double)*N);
+	cudaMalloc(&d_b, sizeof(double)*N);
+	
+	cudaMemcpy(d_x,h_x,sizeof(double)*N,cudaH2D);
+	cudaMemcpy(d_y,h_y,sizeof(double)*N,cudaH2D);
+	cudaMemcpy(d_z,h_z,sizeof(double)*N,cudaH2D);
+	cudaMemcpy(d_a,h_a,sizeof(double)*N,cudaH2D);
+	cudaMemcpy(d_b,h_b,sizeof(double)*N,cudaH2D);
+
+	cublasHandle_t handle;
+	cublasCreate(&handle);
+
+	std::cout << "1";
+	print_v(N,h_x);
+	std::cout << std::endl;
+	std::cout << "2";
+	print_v(N,h_y);
+	std::cout << std::endl;
+	std::cout << "3";
+	print_v(N,h_z);
+	std::cout << std::endl;
+	std::cout << "2";
+	print_v(N,h_a);
+	std::cout << std::endl;
+	std::cout << "3";
+	print_v(N,h_b);
+	std::cout << std::endl;
+
+
+	d_r = linc(handle,5,N,1.0,d_x,2.0,d_y,3.0,d_z,2.0,d_a,3.0,d_b);
+
+	cudaMemcpy(h_r,d_r,sizeof(double)*N,cudaD2H);
+	
+	for(int i = 0; i < N; ++i)
+	{
+		std::cout << h_r[i] << " ";
+	}
+	std::cout << std::endl;
 }
 
 __global__

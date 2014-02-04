@@ -2,6 +2,7 @@
 #include <vector>
 #include "euler.h"
 #include "parameter.h"
+#include "dorpi.h"
 #include <stdio.h>
 #include <cuda_runtime.h>
 #include "cublas_v2.h"
@@ -47,6 +48,8 @@ void print(vector<triple> in, int s)
 
 int main()
 {
+	test();
+	/*
   double t = 0;
   double step = .0001;
   double t_end = .05;
@@ -96,5 +99,6 @@ int main()
   checkError(cudaFree(s));
   checkError(cudaFree(delta));
   return 0;
+	*/
 }
 

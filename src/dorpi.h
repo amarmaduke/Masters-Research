@@ -5,6 +5,8 @@
 #include <vector>
 #include <utility>
 
+void test();
+
 std::vector<triple>
 dormand_prince( const double* const x,
                 const double* const y,
