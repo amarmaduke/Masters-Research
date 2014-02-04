@@ -1,8 +1,9 @@
 #include "dorpi.h"
 #include "force.h"
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdarg>
+#include <cstdlib>
+#include <cassert>
 #include <vector>
 #include <iostream>
 #include <cuda_runtime.h>
@@ -121,14 +122,14 @@ double * linc(cublasHandle_t handle, int count, int size, ...)
 }
 
 double * linc_v(cublasHandle_t handle, int count, int size,
-              vector<double>& constants, vector<double *>& vectors)
+              std::vector<double>& constants, std::vector<double *>& vectors)
 {
   // Preconditions
   assert(constants.size() == vectors.size());
   count = count < 1 || count > vectors.size() ? vectors.size() : count;
 
-  vector<int> iter(count);
-  vector<double *> vectors_copy(vectors.size());
+  std::vector<int> iter(count);
+  std::vector<double *> vectors_copy(vectors.size());
 
   for(int i = 0; i < count; ++i)
   {
@@ -150,7 +151,7 @@ double * linc_v(cublasHandle_t handle, int count, int size,
     for(int i = 0; i < m; i+=2, ++j)
     {
       double alpha = constants[iter[i+1]]/constants[iter[i]];
-      cublasDaxpy(handle, count, &a, vectors_copy[iter[i+1]], 1,
+      cublasDaxpy(handle, count, &alpha, vectors_copy[iter[i+1]], 1,
                   vectors_copy[iter[i]], 1);
       iter[j] = iter[i];
     }
@@ -226,14 +227,14 @@ void test()
 	print_v(N,h_b);
 	std::cout << std::endl;
 
-  vector<double *> d_vectors;
+  std::vector<double *> d_vectors;
   d_vectors.push_back(d_x);
   d_vectors.push_back(d_y);
   d_vectors.push_back(d_z);
   d_vectors.push_back(d_a);
   d_vectors.push_back(d_b);
 
-  vector<double> constants;
+  std::vector<double> constants;
   constants.push_back(1);
   constants.push_back(2);
   constants.push_back(3);
@@ -248,7 +249,7 @@ void test()
 	print_v(N,h_r);
 	std::cout << std::endl;
 
-  d_r = linc_v(handle,5,N,constants,vectors);
+  d_r = linc_v(handle,5,N,constants,d_vectors);
 
   cudaMemcpy(h_r,d_r,sizeof(double)*N,cudaD2H);
 
