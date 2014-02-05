@@ -46,6 +46,12 @@ void SNAPSHOT(std::vector<triple>& save, double *x, double *y, double *s, int si
 }
 
 template<typename T>
+void deep_copy(thrust::device_ptr<T> src, thrust::device_ptr<T> dest, int N)
+{
+  cudaMemcpy(src.get(), dest.get(), sizeof(T)*N, cudaMemcpyDeviceToDevice);
+}
+
+template<typename T>
 void print_v(int n, T * x)
 {
 	std::cout << "(";
@@ -111,20 +117,9 @@ double * linc(cublasHandle_t handle, int count, int size,
   return out;
 }
 
-namespace utility
-{
-
-template<typename T>
-void deep_copy(device_ptr<T> src, device_ptr<T> dest, int N)
-{
-  cudaMemcpy(src.get(), dest.get(), sizeof(T)*N, cudaMemcpyDeviceToDevice);
-}
-
-}
-
-device_ptr<double> linc_v(cublasHandle_t handle, int size,
+thrust::device_ptr<double> linc_v(cublasHandle_t handle, int size,
                         thrust::host_vector<double>& constants,
-                        thrust::host_vector<device_ptr<double> >& vectors)
+                        thrust::host_vector<thrust::device_ptr<double> >& vectors)
 {
   // Preconditions
   assert(constants.size() == vectors.size());
@@ -132,9 +127,9 @@ device_ptr<double> linc_v(cublasHandle_t handle, int size,
   // Setup
   int count = constants.size();
   std::vector<int> iter(count);
-  thrust::host_vector<device_ptr<double> > vectors_copy(vectors.size());
+  thrust::host_vector<thrust::device_ptr<double> > vectors_copy(vectors.size());
 
-  device_ptr<double> buffer = thrust::device_malloc<double>(size*count);
+  thrust::device_ptr<double> buffer = thrust::device_malloc<double>(size*count);
   for(int i = 0; i < count; ++i)
   {
     // Setup iterator
@@ -142,7 +137,7 @@ device_ptr<double> linc_v(cublasHandle_t handle, int size,
 
     // Grab vector pointer
     vectors_copy[i] = buffer + size*i;
-    utility::deep_copy(vectors_copy[i],vectors[i],size);
+    deep_copy(vectors_copy[i],vectors[i],size);
   }
 
   // Compute linear combination
@@ -167,8 +162,8 @@ device_ptr<double> linc_v(cublasHandle_t handle, int size,
   cublasDscal(handle, count, &a, vectors_copy[0].get(), 1);
 
   // Grab output and clean
-  device_ptr<double> out = thrust::device_malloc<double>(size);
-  utility::deep_copy(out, vectors_copy[0], size);
+  thrust::device_ptr<double> out = thrust::device_malloc<double>(size);
+  deep_copy(out, vectors_copy[0], size);
   thrust::device_free(buffer);
 
   return out;
@@ -242,15 +237,14 @@ double * linc_s(cublasHandle_t handle, int count, int size,
 void test()
 {
   int N = 3;
-  double *h_x, *h_y, *h_z, *h_a, *h_b, *h_r;
-  double *d_x, *d_y, *d_z, *d_a, *d_b, *d_r;
+  double *h_x, *h_y, *h_z, *h_a, *h_b;
+  double *d_x, *d_y, *d_z, *d_a, *d_b;
 
   h_x = new double[N];
   h_y = new double[N];
   h_z = new double[N];
   h_a = new double[N];
   h_b = new double[N];
-  h_r = new double[N];
 
   for(int i = 0; i < N; ++i)
   {
@@ -277,7 +271,7 @@ void test()
   cublasCreate(&handle);
 
   thrust::host_vector<double> constants;
-  thrust::host_vector<device_ptr<double> > vectors;
+  thrust::host_vector<thrust::device_ptr<double> > vectors;
 
   constants.push_back(1);
   constants.push_back(1);
@@ -290,95 +284,12 @@ void test()
   vectors.push_back(thrust::device_pointer_cast(d_a));
   vectors.push_back(thrust::device_pointer_cast(d_b));
 
-  device_ptr<double> out = linc_v(handle,N,constants,vectors);
+  thrust::device_ptr<double> out = linc_v(handle,N,constants,vectors);
   print_v(N,out.get());
   std::cout << std::endl;
 
-  device_ptr<double> out = linc_v(handle,N,constants,vectors);
+  out = linc_v(handle,N,constants,vectors);
   print_v(N,out.get());
-  std::cout << std::endl;
-
-}
-
-void test2()
-{
-	int N = 3;
-	double *h_x, *h_y, *h_z, *h_a, *h_b, *h_r;
-	double *d_x, *d_y, *d_z, *d_a, *d_b, *d_r;
-
-	h_x = new double[N];
-	h_y = new double[N];
-	h_z = new double[N];
-	h_a = new double[N];
-	h_b = new double[N];
-	h_r = new double[N];
-
-	for(int i = 0; i < N; ++i)
-	{
-		h_x[i] = 1;
-		h_y[i] = 1;
-		h_z[i] = 1;
-		h_a[i] = 1;
-		h_b[i] = 1;
-	}
-
-	cudaMalloc(&d_x, sizeof(double)*N);
-	cudaMalloc(&d_y, sizeof(double)*N);
-	cudaMalloc(&d_z, sizeof(double)*N);
-	cudaMalloc(&d_a, sizeof(double)*N);
-	cudaMalloc(&d_b, sizeof(double)*N);
-
-	cudaMemcpy(d_x,h_x,sizeof(double)*N,cudaH2D);
-	cudaMemcpy(d_y,h_y,sizeof(double)*N,cudaH2D);
-	cudaMemcpy(d_z,h_z,sizeof(double)*N,cudaH2D);
-	cudaMemcpy(d_a,h_a,sizeof(double)*N,cudaH2D);
-	cudaMemcpy(d_b,h_b,sizeof(double)*N,cudaH2D);
-
-	cublasHandle_t handle;
-	cublasCreate(&handle);
-
-	std::cout << "1";
-	print_v(N,h_x);
-	std::cout << std::endl;
-	std::cout << "2";
-	print_v(N,h_y);
-	std::cout << std::endl;
-	std::cout << "3";
-	print_v(N,h_z);
-	std::cout << std::endl;
-	std::cout << "2";
-	print_v(N,h_a);
-	std::cout << std::endl;
-	std::cout << "3";
-	print_v(N,h_b);
-	std::cout << std::endl;
-
-  std::vector<double *> d_vectors;
-  d_vectors.push_back(d_x);
-  d_vectors.push_back(d_y);
-  d_vectors.push_back(d_z);
-  d_vectors.push_back(d_a);
-  d_vectors.push_back(d_b);
-
-  std::vector<double> constants;
-  constants.push_back(1);
-  constants.push_back(2);
-  constants.push_back(3);
-  constants.push_back(2);
-  constants.push_back(3);
-
-  d_r = linc(handle,5,N,constants,d_vectors);
-
-  cudaMemcpy(h_r,d_r,sizeof(double)*N,cudaD2H);
-
-  print_v(N,h_r);
-  std::cout << std::endl;
-
-  d_r = linc_s(handle,5,N,constants,d_vectors);
-
-  cudaMemcpy(h_r,d_r,sizeof(double)*N,cudaD2H);
-
-  print_v(N,h_r);
   std::cout << std::endl;
 
 }
@@ -563,7 +474,6 @@ dormand_prince( const double * const x,
   }
   int count = 0;
 
-  cublasHandle_t handle;
 
   double error = 100;
   while(t <= t_end)
