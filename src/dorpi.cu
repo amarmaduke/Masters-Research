@@ -8,6 +8,9 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include "cublas_v2.h"
+#include <thrust/device_vector.h>
+#include <thrust/device_ptr.h>
+#include <thrust/host_vector.h>
 
 #define cudaH2D cudaMemcpyHostToDevice
 #define cudaD2H cudaMemcpyDeviceToHost
@@ -96,14 +99,77 @@ double * linc(cublasHandle_t handle, int count, int size,
   }
 
   double a = constants[iter[0]];
-  cublasDscal(handle, count, &a, vectors[0], 1);
+  cublasDscal(handle, count, &a, vectors_copy[0], 1);
 
   // Grab output and clean
-  double * out = vectors[0];
+  double * out = vectors_copy[0];
   for(int i = 1; i < count; ++i)
   {
     checkError(cudaFree(vectors[i]));
   }
+
+  return out;
+}
+
+namespace utility
+{
+
+template<typename T>
+void deep_copy(device_ptr<T> src, device_ptr<T> dest, int N)
+{
+  cudaMemcpy(src.get(), dest.get(), sizeof(T)*N, cudaMemcpyDeviceToDevice);
+}
+
+}
+
+device_ptr<double> linc_v(cublasHandle_t handle, int size,
+                        thrust::host_vector<double>& constants,
+                        thrust::host_vector<device_ptr<double> >& vectors)
+{
+  // Preconditions
+  assert(constants.size() == vectors.size());
+
+  // Setup
+  int count = constants.size();
+  std::vector<int> iter(count);
+  thrust::host_vector<device_ptr<double> > vectors_copy(vectors.size());
+
+  device_ptr<double> buffer = thrust::device_malloc<double>(size*count);
+  for(int i = 0; i < count; ++i)
+  {
+    // Setup iterator
+    iter.push_back(i);
+
+    // Grab vector pointer
+    vectors_copy[i] = buffer + size*i;
+    utility::deep_copy(vectors_copy[i],vectors[i],size);
+  }
+
+  // Compute linear combination
+  int N = count, m, j = 0;
+  while(N > 1)
+  {
+    m = N % 2 == 0 ? N : N - 1;
+    for(int i = 0; i < m; i+=2, ++j)
+    {
+      double alpha = constants[iter[i+1]]/constants[iter[i]];
+      cublasDaxpy(handle, count, &alpha, vectors_copy[iter[i+1]].get(), 1,
+                  vectors_copy[iter[i]].get(), 1);
+      iter[j] = iter[i];
+    }
+    if(N % 2 != 0)
+      iter[j] = iter[m];
+    N = (N+1)/2;
+    j = 0;
+  }
+
+  double a = constants[iter[0]];
+  cublasDscal(handle, count, &a, vectors_copy[0].get(), 1);
+
+  // Grab output and clean
+  device_ptr<double> out = thrust::device_malloc<double>(size);
+  utility::deep_copy(out, vectors_copy[0], size);
+  thrust::device_free(buffer);
 
   return out;
 }
@@ -174,6 +240,67 @@ double * linc_s(cublasHandle_t handle, int count, int size,
 }
 
 void test()
+{
+  int N = 3;
+  double *h_x, *h_y, *h_z, *h_a, *h_b, *h_r;
+  double *d_x, *d_y, *d_z, *d_a, *d_b, *d_r;
+
+  h_x = new double[N];
+  h_y = new double[N];
+  h_z = new double[N];
+  h_a = new double[N];
+  h_b = new double[N];
+  h_r = new double[N];
+
+  for(int i = 0; i < N; ++i)
+  {
+    h_x[i] = 1;
+    h_y[i] = 1;
+    h_z[i] = 1;
+    h_a[i] = 1;
+    h_b[i] = 1;
+  }
+
+  cudaMalloc(&d_x, sizeof(double)*N);
+  cudaMalloc(&d_y, sizeof(double)*N);
+  cudaMalloc(&d_z, sizeof(double)*N);
+  cudaMalloc(&d_a, sizeof(double)*N);
+  cudaMalloc(&d_b, sizeof(double)*N);
+
+  cudaMemcpy(d_x,h_x,sizeof(double)*N,cudaH2D);
+  cudaMemcpy(d_y,h_y,sizeof(double)*N,cudaH2D);
+  cudaMemcpy(d_z,h_z,sizeof(double)*N,cudaH2D);
+  cudaMemcpy(d_a,h_a,sizeof(double)*N,cudaH2D);
+  cudaMemcpy(d_b,h_b,sizeof(double)*N,cudaH2D);
+
+  cublasHandle_t handle;
+  cublasCreate(&handle);
+
+  thrust::host_vector<double> constants;
+  thrust::host_vector<device_ptr<double> > vectors;
+
+  constants.push_back(1);
+  constants.push_back(1);
+  constants.push_back(1);
+  constants.push_back(1);
+  constants.push_back(1);
+  vectors.push_back(thrust::device_pointer_cast(d_x));
+  vectors.push_back(thrust::device_pointer_cast(d_y));
+  vectors.push_back(thrust::device_pointer_cast(d_z));
+  vectors.push_back(thrust::device_pointer_cast(d_a));
+  vectors.push_back(thrust::device_pointer_cast(d_b));
+
+  device_ptr<double> out = linc_v(handle,N,constants,vectors);
+  print_v(N,out.get());
+  std::cout << std::endl;
+
+  device_ptr<double> out = linc_v(handle,N,constants,vectors);
+  print_v(N,out.get());
+  std::cout << std::endl;
+
+}
+
+void test2()
 {
 	int N = 3;
 	double *h_x, *h_y, *h_z, *h_a, *h_b, *h_r;
