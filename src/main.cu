@@ -30,7 +30,6 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 
 void print(vector<triple> in, int s)
 {
-  cublasStatus_t stat;
   for(int i = 0; i < in.size(); ++i)
   {
     triple p = in[i];
