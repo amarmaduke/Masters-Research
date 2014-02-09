@@ -89,12 +89,12 @@ thrust::device_ptr<double> util::linc(cublasHandle_t handle, int size,
                     thrust::host_vector<thrust::device_ptr<double> >& vectors)
 {
   // Preconditions
-  assert(constants.size() == vectors.size());
+  assert(constants.size() >= vectors.size());
 
   // Setup
-  int count = constants.size();
+  int count = vectors.size();
   std::vector<int> iter(count);
-  thrust::host_vector<thrust::device_ptr<double> > vectors_copy(vectors.size());
+  thrust::host_vector<thrust::device_ptr<double> > vectors_copy(count);
 
   thrust::device_ptr<double> buffer = thrust::device_malloc<double>(size*count);
   for(int i = 0; i < count; ++i)

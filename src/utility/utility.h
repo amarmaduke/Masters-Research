@@ -15,7 +15,7 @@
 #define _UTILITY_H_
 
 #ifdef _ERROR_
-  #define check_error(x) do { util::error_code e(x); \
+  #define check_error(x) do { util::error_code e((x)); \
                               util::gpu_assert(e); } while(0)
 #else
   #define check_error(x) x
@@ -50,6 +50,18 @@ thrust::device_ptr<double> linc(cublasHandle_t handle, int size,
                     thrust::host_vector<double>& constants,
                     thrust::host_vector<thrust::device_ptr<double> >& vectors);
 
+
+template<typename T>
+struct device_malloc_functor
+{
+  device_malloc_functor(size_t s) : size(s) { }
+
+  __host__ __device__
+  void operator() (thrust::device_ptr<T>);
+
+  private:
+    size_t size;
+};
 
 template<typename T>
 struct pinned_ptr {

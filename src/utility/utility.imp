@@ -1,4 +1,11 @@
 template<typename T>
+__host__ __device__
+void device_malloc_functor<T>::operator() (thrust::device_ptr<T> ptr)
+{
+  ptr = thrust::device_malloc<T>(this->size);
+}
+
+template<typename T>
 __host__
 T* pinned_ptr<T>::get() const
 {
