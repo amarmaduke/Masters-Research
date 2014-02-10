@@ -10,8 +10,8 @@
 #include "../utility/utility.h"
 #include "../simulation/parameter.h"
 
-#ifndef _DORMAND_PRINCE_H_
-#define _DORMAND_PRINCE_H_
+#ifndef DORMAND_PRINCE_H
+#define DORMAND_PRINCE_H
 
 namespace dorpi
 {
@@ -27,8 +27,8 @@ struct options
 
 template<typename F>
 thrust::host_vector<thrust::device_ptr<double> >
-solve(F& functor, thrust::device_ptr<double>& t_init,
-      thrust::device_ptr<double>& y_init, int ptr_size, const options& o);
+solve(F functor, double t_init, thrust::device_ptr<double>& y_init,
+      int ptr_size, const options& o);
 
 #include "dorpi.imp"
 

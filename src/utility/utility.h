@@ -11,8 +11,8 @@
 
 #include "def.h"
 
-#ifndef _UTILITY_H_
-#define _UTILITY_H_
+#ifndef UTILITY_H
+#define UTILITY_H
 
 #ifdef _ERROR_
   #define check_error(x) do { util::error_code e((x)); \

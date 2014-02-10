@@ -1,14 +1,19 @@
-#ifndef _FORCE_H_
-#define _FORCE_H_
+#include <thrust/device_ptr.h>
+#include <thrust/transform.h>
 
 #include "parameter.h"
+#include "../utility/utility.h"
 
-void force( double * const out_x,
-            double * const out_y,
-            double * const out_s,
-            const double * const in_x,
-            const double * const in_y,
-            const double * const in_s,
-            const double * const delta,
-            const parameter p);
+#ifndef FORCE_H
+#define FORCE_H
+
+struct force_functor
+{
+  parameter state;
+
+  force_functor(parameter p) : state(p) { };
+
+  thrust::device_ptr<double> operator() (double t,thrust::device_ptr<double> y);
+};
+
 #endif

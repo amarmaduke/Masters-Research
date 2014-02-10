@@ -1,5 +1,5 @@
-#ifndef _PARAMETER_H_
-#define _PARAMETER_H_
+#ifndef PARAMETER_H
+#define PARAMETER_H
 
 struct parameter
 {
@@ -13,6 +13,7 @@ struct parameter
 
   double sub_h;
   double sub_count;
+  double * delta;
 
   parameter()
   {

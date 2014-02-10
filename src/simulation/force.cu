@@ -1,50 +1,4 @@
 #include "force.h"
-#include "parameter.h"
-#include <iostream>
-#include <stdio.h>
-
-#define _ERROR_
-//#define _DEBUG_
-
-#ifdef _DEBUG_
-  #define debug(x) x
-#else
-  #define debug(x)
-#endif
-
-#ifdef _ERROR_
-#define checkError(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
-{
-  if (code != cudaSuccess)
-  {
-    fprintf(stderr,"GPUassert: %s %s %d\n",
-    cudaGetErrorString(code), file, line);
-    if (abort) exit(code);
-  }
-}
-
-#define checkKernel() { kernel_assert(__FILE__,__LINE__); }
-inline void kernel_assert(char *file, int line)
-{
-  cudaError_t err = cudaGetLastError();
-  if (cudaSuccess != err) {
-    fprintf (stderr, "Cuda error in file '%s' in line %i : %s.\n",
-      file,line, cudaGetErrorString(err));
-    exit(EXIT_FAILURE);
-  }
-  err = cudaThreadSynchronize();
-  if (cudaSuccess != err) {
-    fprintf (stderr, "Cuda error in file '%s' in line %i : %s.\n",
-      file, line, cudaGetErrorString( err));
-    exit(EXIT_FAILURE);
-  }
-}
-#else
-  #define checkError(ans) ans
-  #define checkKernel()
-#endif
-
 
 __global__
 void compute_lengths( double * const lens,
@@ -68,15 +22,6 @@ void compute_lengths( double * const lens,
   double l = sqrt((xp-x)*(xp-x)+(yp-y)*(yp-y));
 
   lens[index] = l;
-
-  debug(printf(
-    "block(%d,%d,%d), thread(%d,%d,%d), index:%d\n"
-    "x: %f, y: %f\n"
-    "xp: %f, yp: %f\n"
-    "l: %f\n",blockIdx.x,blockIdx.y,blockIdx.z,
-    threadIdx.x,threadIdx.y,threadIdx.z,index,x,y,xp,yp,l
-  );)
-
 }
 
 __global__
@@ -217,24 +162,6 @@ void compute_fiber_dependent( double * const out_x,
   double total_force_x = -(bending_x + extensible_x);
   double total_force_y = -(bending_y + extensible_y + vdW_y);
 
-  ///*
-  debug(printf(
-    "compute fiber dependent force:\n"
-    "Block index: (%d,%d,%d), Thread index: (%d,%d,%d)\n"
-    "xpp: %.5f, xp: %.5f, x: %.5f, xn: %.5f, xnn: %.5f\n"
-    "ypp: %.5f, yp: %.5f, y: %.5f, yn: %.5f, ynn: %.5f\n"
-    "lp: %.5f, l: %.5f, ln: %.5f, lnn: %.5f\n"
-    "bending_x: %f, bending_y: %f\n"
-    "extensible_x: %f, extensible_y: %f\n"
-    "vdW_y: %f\n"
-    "total_x: %f, total_y: %f\n",
-    blockIdx.x,blockIdx.y,blockIdx.z,
-    threadIdx.x,threadIdx.y,threadIdx.z,
-    xpp,xp,x,xn,xnn,ypp,yp,y,yn,ynn,lp,l,ln,lnn,
-    bending_x,bending_y,extensible_x,extensible_y,
-    vdW_y,total_force_x,total_force_y
-  );)
-
   out_x[index] = total_force_x;
   out_y[index] = total_force_y;
 }
@@ -294,13 +221,6 @@ void compute_n_body_vdw(double * const out_x,
 
       vdW_x = vdW_x - LJval*temp_x;
       vdW_y = vdW_y - LJval*temp_y;
-
-      ///*
-      debug(printf(
-        "Index: %d, Index:o: %d\n"
-        "vdW_x: %f, vdW_y: %f\n",
-        index,k,LJval*temp_x,LJval*temp_y
-      );) //
     }
   }
 
@@ -358,64 +278,32 @@ void combine( double * const out_x,
 
   out_x[index] = f_1x[index] + f_2x[index];
   out_y[index] = f_1y[index] + f_2y[index];
-
-  debug(printf(
-    "Index: %d\n"
-    "force_x: %f\n"
-    "force_y: %f\n",
-    index,out_x[index],out_y[index]
-  );)
 }
 
-void force( double * const out_x,
-            double * const out_y,
-            double * const out_s,
-            const double * const in_x,
-            const double * const in_y,
-            const double * const in_s,
-            const double * const delta,
-            const parameter p)
+thrust::device_ptr<double>
+force_functor::operator()(double t, thrust::device_ptr<double> y)
 {
-  dim3 grid(1,1,1), blocks(p.m,p.n,1);
-  int size = p.n * p.m;
+  dim3 grid(1,1,1), blocks(this->state.m,this->state.n,1);
+  int size = this->state.n * this->state.m;
 
-  double *lens, *f_1x, *f_1y, *f_2x, *f_2y;
-  checkError(cudaMalloc(&lens,sizeof(double)*size));
-  checkError(cudaMalloc(&f_1x,sizeof(double)*size));
-  checkError(cudaMalloc(&f_1y,sizeof(double)*size));
-  checkError(cudaMalloc(&f_2x,sizeof(double)*size));
-  checkError(cudaMalloc(&f_2y,sizeof(double)*size));
+  thrust::device_ptr<double> out = thrust::device_malloc<double>(2*size+2);
+  thrust::device_ptr<double> f_1 = thrust::device_malloc<double>(2*size+2);
+  thrust::device_ptr<double> f_2 = thrust::device_malloc<double>(2*size+2);
+  thrust::device_ptr<double> lens = thrust::device_malloc<double>(size);
 
-  checkError(cudaMemset(out_s,0,sizeof(double)*2));
-  checkError(cudaMemset(lens,0,sizeof(double)*size));
-  checkError(cudaMemset(out_x,0,sizeof(double)*size));
-  checkError(cudaMemset(out_y,0,sizeof(double)*size));
-  checkError(cudaMemset(f_1x,0,sizeof(double)*size));
-  checkError(cudaMemset(f_1y,0,sizeof(double)*size));
-  checkError(cudaMemset(f_2x,0,sizeof(double)*size));
-  checkError(cudaMemset(f_2y,0,sizeof(double)*size));
+  compute_lengths<<<grid,blocks>>>( lens.get(), y.get(), y.get()+size,
+                                    this->state.delta, this->state);
+  compute_fiber_dependent<<<grid,blocks>>>( f_1.get(), f_1.get()+size, y.get(),
+                      y.get()+size, lens.get(), this->state.delta, this->state);
+  compute_n_body_vdw<<<grid,blocks>>>(f_2.get(), f_2.get()+size,
+          out.get()+2*size, y.get(), y.get()+size, y.get()+2*size, this->state);
 
+  thrust::transform(f_1,f_1+2*size+2,f_2,out,thrust::plus<double>());
 
-  //print_all<<<1,1>>>(out_x,out_y,out_s,in_x,in_y,in_s,lens,f_1x,f_1y,f_2x,f_2y,d_p);
+  //combine<<<grid,blocks>>>(out_x,out_y,f_1x,f_1y,f_2x,f_2y,p);
 
-  int i = 0;
-
-  checkKernel()
-  compute_lengths<<<grid,blocks>>>(lens,in_x,in_y,delta,p);
-  checkKernel()
-  compute_fiber_dependent<<<grid,blocks>>>(f_1x,f_1y,in_x,in_y,lens,delta,p);
-  checkKernel()
-  compute_n_body_vdw<<<grid,blocks>>>(f_2x,f_2y,out_s,in_x,in_y,in_s,p);
-  checkKernel()
-  combine<<<grid,blocks>>>(out_x,out_y,f_1x,f_1y,f_2x,f_2y,p);
-  checkKernel()
-
-  //print_all<<<1,1>>>(out_x,out_y,out_s,in_x,in_y,in_s,lens,f_1x,f_1y,f_2x,f_2y,d_p);
-
-  checkError(cudaFree(lens));
-  checkError(cudaFree(f_1x));
-  checkError(cudaFree(f_1y));
-  checkError(cudaFree(f_2x));
-  checkError(cudaFree(f_2y));
+  thrust::device_free(f_1);
+  thrust::device_free(f_2);
+  thrust::device_free(lens);
+  return out;
 }
-
