@@ -166,6 +166,20 @@ void compute_fiber_dependent( double * const out_x,
   out_y[index] = total_force_y;
 }
 
+__device__ double atomicAdd(double * const address, double val)
+{
+  unsigned long long int* address_as_ull = (unsigned long long int*)address;
+  unsigned long long int old = *address_as_ull, assumed;
+  do {
+      assumed = old;
+      old = atomicCAS(address_as_ull, assumed,
+                      __double_as_longlong(val +
+                      __longlong_as_double(assumed)));
+  } while (assumed != old);
+  return __longlong_as_double(old);
+}
+
+
 void compute_n_body_vdw(double * const out_x,
                         double * const out_y,
                         double * const out_s,
@@ -303,7 +317,7 @@ force_functor::operator()(double t, thrust::device_ptr<double> y)
 	//std::cout << "functor call: n_body:" << std::endl;
 	//util::print(f_2,2*size+2);
   thrust::transform(f_1,f_1+2*size+2,f_2,out,thrust::plus<double>());
-	
+
 	//std::cout << "functor call: total force:" << std::endl;
 	//util::print(out,2*size+2);
 
