@@ -180,6 +180,7 @@ __device__ double atomicAdd(double * const address, double val)
 }
 
 
+__global__
 void compute_n_body_vdw(double * const out_x,
                         double * const out_y,
                         double * const out_s,
