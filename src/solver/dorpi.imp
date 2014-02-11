@@ -1,14 +1,3 @@
-double y_constants[7][7] = {
-{       (1/2),            0,           0,         0,              0,          0,    0},
-{      (3/40),       (9/40),           0,         0,              0,          0,    0},
-{     (44/45),     (-56/15),      (32/9),         0,              0,          0,    0},
-{(19372/6561),(-25360/2187),(64448/6561),(-212/729),              0,          0,    0},
-{ (9017/3168),    (-355/33),(46732/5247),  (49/176),  (-5103/18656),          0,    0},
-{    (35/384),            0,  (500/1113), (125/192),   (-2187/6784),    (11/84),    0},
-{(5179/57600),            0,(7571/16695), (393/640),(-92097/339200),(187/2100),(1/40)}};
-
-static double const t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
-
 namespace {
 
 struct scale_functor
@@ -124,7 +113,7 @@ solve(F functor, double t_i, thrust::device_ptr<double>& y_init, int ptr_size,
       thrust::host_vector<thrust::device_ptr<double> > vecs;
 
       // Function Evaluations
-		
+
 			std::cout << constants[0] << " " << constants[1] << std::endl;
 			for(int i = 0; i < 7; ++i)
 			{
@@ -134,7 +123,7 @@ solve(F functor, double t_i, thrust::device_ptr<double>& y_init, int ptr_size,
       std::cout << constants[0] << " " << constants[1] << std::endl;
 			//thrust::for_each_n(constants.begin()+1,1,scale_functor(h));
       vecs.push_back(y); vecs.push_back(k[0]);
-      
+
 			std::cout << "k[1]:" << std::endl;
 			print1(vecs,constants,ptr_size);
 			temp_y = util::linc(handle,ptr_size,constants,vecs);
@@ -212,9 +201,9 @@ solve(F functor, double t_i, thrust::device_ptr<double>& y_init, int ptr_size,
 
       int scanf_thing;
 			scanf("%d",&scanf_thing);
-			
+
 			//util::print(k[6],ptr_size);
-			
+
 			// Compute Error
       thrust::copy_n(&y_constants[6][0],7,constants.begin()+1);
       vecs.push_back(k[6]);
@@ -224,7 +213,7 @@ solve(F functor, double t_i, thrust::device_ptr<double>& y_init, int ptr_size,
 			//}
       error_vec = util::linc(handle,ptr_size,constants,vecs);
       //util::print(error_vec,ptr_size);
-			
+
 			thrust::device_ptr<double> d_max_y = thrust::max_element( y,y + ptr_size,
                                           max_absolute_functor());
 			double * max_y = new double;
@@ -293,13 +282,13 @@ solve(F functor, double t_i, thrust::device_ptr<double>& y_init, int ptr_size,
 	thrust::device_ptr<double> save = thrust::device_malloc<double>(ptr_size);
 	util::deep_copy(save,y,ptr_size);
 	output.push_back(save);
-  
+
 	std::cout << "Grid:inside dorpi:" << std::endl;
 	for(int i = 0; i < output.size(); ++i)
 	{
 		util::print(output[i],ptr_size);
 	}
-	
+
 	// Cleanup
   thrust::device_free(k[0]);
   thrust::device_free(y);
