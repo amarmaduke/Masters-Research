@@ -1,3 +1,5 @@
+#include <thrust/random/linear_congruential_engine.h>
+#include <thrust/random/uniform_real_distribution.h>
 #include "utility.h"
 
 namespace
@@ -5,17 +7,17 @@ namespace
   double * kahan_summation( int count, int size, double * constants,
                             double ** vectors)
   {
-    double * sum = new double[count]();
-    double * correction = new double[count]();
+    double * sum = new double[size]();
+    double * correction = new double[size]();
 
-    for(int k = 0; k < count; ++k)
+		for(int i = 0; i < size; ++i)
     {
-      for(int i = 0; i < size; ++i)
+      for(int k = 0; k < count; ++k)
       {
-        double y = constants[k]*vectors[k][i] - correction[k];
-        double t = sum[k] + y;
-        correction[k] = (t - sum[k]) - y;
-        sum[k] = t;
+        double y = constants[k]*vectors[k][i] - correction[i];
+        double t = sum[i] + y;
+        correction[i] = (t - sum[i]) - y;
+				sum[i] = t;
       }
     }
 
@@ -25,7 +27,7 @@ namespace
 }
 
 bool util::test::linc(int seed, bool verbose, int max_vector_count,
-                      int max_vector_size, int max_int)
+                      int max_vector_size, double max_double)
 {
   srand(seed);
   int N = (rand() % max_vector_count)+1, s = (rand() % max_vector_size)+1;
@@ -34,6 +36,9 @@ bool util::test::linc(int seed, bool verbose, int max_vector_count,
   h_v = new double*[N];
   c = new double[N];
 
+	thrust::minstd_rand rng;
+	thrust::uniform_real_distribution<double> dist(1,max_double);
+
   for(int i = 0; i < N; ++i)
   {
     h_v[i] = new double[s];
@@ -41,10 +46,10 @@ bool util::test::linc(int seed, bool verbose, int max_vector_count,
 
   for(int i = 0; i < N; ++i)
   {
-    c[i] = (rand() % max_int) + 1;
+    c[i] = dist(rng);
     for(int j = 0; j < s; ++j)
     {
-      h_v[i][j] = rand() % max_int;
+      h_v[i][j] = dist(rng);
     }
   }
 
@@ -67,7 +72,7 @@ bool util::test::linc(int seed, bool verbose, int max_vector_count,
   cublasCreate(&hand);
 
   thrust::device_ptr<double> d_result = util::linc(hand,s,con,vecs);
-  double *t_result;
+	double *t_result;
   t_result = new double[s];
   cudaMemcpy(t_result,d_result.get(),sizeof(double)*s,cudaMemcpyDeviceToHost);
 

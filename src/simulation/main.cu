@@ -8,7 +8,7 @@
 int main()
 {
   double t = 0;
-  double step = .0001;
+  double step = .01;
   double t_end = .05;
   parameter p;
   int size = p.m*p.n;
@@ -32,7 +32,11 @@ int main()
   force_functor F(p);
   dorpi::options o;
   o.t_start = t; o.t_end = t_end; o.requested_h = step;
-  o.tolerance = .00000001;
+  o.tolerance = .00001;
+	o.save_count = 10;
+
+	util::print(init,20);
+	util::print(d_delta,p.m);
 
   time_t start = time(0);
   thrust::host_vector<thrust::device_ptr<double> > grid
@@ -40,14 +44,12 @@ int main()
   time_t end = time(0);
   double time = difftime(end,start);
 
+	std::cout << "Grid:" << std::endl;
   for(int i = 0; i < grid.size(); ++i)
   {
-    for(int j = 0; j < 2*size+2; ++j)
-    {
-      std::cout << grid[i][j] << " ";
-    }
-    std::cout << std::endl;
-  }
+		thrust::device_ptr<double> d_r = grid[i];
+		util::print(d_r,2*size+2);
+	}
   std::cout << "time: " << time << std::endl;
 
   thrust::device_free(init);

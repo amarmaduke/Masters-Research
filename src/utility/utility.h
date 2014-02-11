@@ -16,7 +16,7 @@
 
 #ifdef _ERROR_
   #define check_error(x) do { util::error_code e((x)); \
-                              util::gpu_assert(e); } while(0)
+                              util::gpu_assert(e,__FILE__,__LINE__); } while(0)
 #else
   #define check_error(x) x
 #endif
@@ -44,7 +44,7 @@ struct error_code
   bool operator!() const;
 };
 
-void gpu_assert(error_code);
+void gpu_assert(error_code, char *, int);
 
 thrust::device_ptr<double> linc(cublasHandle_t handle, int size,
                     thrust::host_vector<double>& constants,
@@ -119,10 +119,13 @@ __host__ inline
 void deep_copy( pinned_ptr<T> dest, thrust::device_ptr<T> src, size_t,
                 cudaStream_t);
 
+template<typename T>
+void print(thrust::device_ptr<T>, int size);
+
 namespace test {
 
-bool linc(int seed, bool verbose, int max_vector_count, int max_vector_size,
-          int max_int);
+bool linc(int size, bool verbose, int max_vector_count, int max_vector_size,
+          double max_int);
 
 } // util::test
 

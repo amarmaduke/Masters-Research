@@ -6,5 +6,5 @@ using namespace std;
 
 int main()
 {
-	util::test::linc(1,true,100,100,100);
+	util::test::linc(3 << 2,true,100,100,1.001);
 }

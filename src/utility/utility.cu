@@ -67,19 +67,19 @@ util::error_code::operator int() const
 bool util::error_code::operator!() const{
   switch(this->tag)
   {
-    case CUDA: return this->type.cuda == cudaSuccess ? true : false;
+    case CUDA: return this->type.cuda == cudaSuccess ? false : true;
     case CUBLAS: return this->type.cublas == CUBLAS_STATUS_SUCCESS ?
-          true : false;
+          false : true;
     default: return true;
   }
 }
 
-void util::gpu_assert(error_code code)
+void util::gpu_assert(error_code code, char * file, int line)
 {
   if (!code)
   {
     fprintf(stderr,"cuda_assert: %s %s %d\n",
-      (const char*)code, __FILE__, __LINE__);
+      (const char*)code, file, line);
     exit(code);
   }
 }
@@ -116,11 +116,16 @@ thrust::device_ptr<double> util::linc(cublasHandle_t handle, int size,
     {
       double alpha = constants[iter[i+1]]/constants[iter[i]];
 
-      check_error(cublasDaxpy(handle, size, &alpha,
+			if (constants[iter[i]] != 0)
+			{
+      	check_error(cublasDaxpy(handle, size, &alpha,
                               vectors_copy[iter[i+1]].get(), 1,
                               vectors_copy[iter[i]].get(), 1));
-
-      iter[j] = iter[i];
+				iter[j] = iter[i];
+			}else
+			{
+				iter[j] = iter[i+1];
+			}
     }
     if(N % 2 != 0)
       iter[j] = iter[m];

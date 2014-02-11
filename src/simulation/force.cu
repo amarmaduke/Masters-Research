@@ -166,9 +166,6 @@ void compute_fiber_dependent( double * const out_x,
   out_y[index] = total_force_y;
 }
 
-
-
-__global__
 void compute_n_body_vdw(double * const out_x,
                         double * const out_y,
                         double * const out_s,
@@ -254,8 +251,8 @@ void compute_n_body_vdw(double * const out_x,
     s_vdW_y = s_vdW_y + LJval*temp_y;
   }
 
-  out_s[0] = out_s[0] + s_vdW_x;
-  out_s[1] = out_s[1] + s_vdW_y;
+	atomicAdd(out_s,s_vdW_x);
+	atomicAdd(out_s+1,s_vdW_y);
 
   out_x[index] = vdW_x;
   out_y[index] = vdW_y;
@@ -293,12 +290,22 @@ force_functor::operator()(double t, thrust::device_ptr<double> y)
 
   compute_lengths<<<grid,blocks>>>( lens.get(), y.get(), y.get()+size,
                                     this->state.delta, this->state);
-  compute_fiber_dependent<<<grid,blocks>>>( f_1.get(), f_1.get()+size, y.get(),
+  //std::cout << "functor call: lens:" << std::endl;
+	//util::print(lens,size);
+	compute_fiber_dependent<<<grid,blocks>>>( f_1.get(), f_1.get()+size, y.get(),
                       y.get()+size, lens.get(), this->state.delta, this->state);
+	f_1[2*size] = 0; f_1[2*size+1] = 0;
+	f_2[2*size] = 0; f_2[2*size+1] = 0;
+	//std::cout << "functor call: fiber_dep:" << std::endl;
+	//util::print(f_1,2*size+2);
   compute_n_body_vdw<<<grid,blocks>>>(f_2.get(), f_2.get()+size,
-          out.get()+2*size, y.get(), y.get()+size, y.get()+2*size, this->state);
-
+          f_2.get()+2*size, y.get(), y.get()+size, y.get()+2*size, this->state);
+	//std::cout << "functor call: n_body:" << std::endl;
+	//util::print(f_2,2*size+2);
   thrust::transform(f_1,f_1+2*size+2,f_2,out,thrust::plus<double>());
+	
+	//std::cout << "functor call: total force:" << std::endl;
+	//util::print(out,2*size+2);
 
   //combine<<<grid,blocks>>>(out_x,out_y,f_1x,f_1y,f_2x,f_2y,p);
 

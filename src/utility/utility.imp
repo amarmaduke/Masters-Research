@@ -42,7 +42,7 @@ __host__ inline
 void deep_copy(thrust::device_ptr<T> dest,
                       thrust::device_ptr<T> src, size_t N)
 {
-    check_error(cudaMemcpy( src.get(),dest.get(),sizeof(T)*N,
+    check_error(cudaMemcpy( dest.get(),src.get(),sizeof(T)*N,
                             cudaMemcpyDeviceToDevice));
 }
 
@@ -50,14 +50,14 @@ template<typename T>
 __host__ inline
 void deep_copy(thrust::device_ptr<T> dest, T* src, size_t N)
 {
-  check_error(cudaMemcpy(src,dest.get(),sizeof(T)*N,cudaMemcpyHostToDevice));
+  check_error(cudaMemcpy(dest.get(),src,sizeof(T)*N,cudaMemcpyHostToDevice));
 }
 
 template<typename T>
 __host__ inline
 void deep_copy(T* dest, thrust::device_ptr<T> src, size_t N)
 {
-  check_error(cudaMemcpy(src.get(),dest,sizeof(T)*N,cudaMemcpyDeviceToHost));
+  check_error(cudaMemcpy(dest,src.get(),sizeof(T)*N,cudaMemcpyDeviceToHost));
 }
 
 template<typename T>
@@ -85,4 +85,14 @@ void deep_copy( pinned_ptr<T> dest, thrust::device_ptr<T> src, size_t N,
 {
   check_error(cudaMemcpyAsync(src.get(),dest.get(),sizeof(T)*N,
                               cudaMemcpyDeviceToHost,s));
+}
+
+template<typename T>
+void print(thrust::device_ptr<T> t, int size)
+{
+	for(int i = 0; i < size; ++i)
+	{
+		std::cout << t[i] << " ";
+	}
+	std::cout << std::endl;
 }

@@ -6,7 +6,7 @@ C11=--compiler-options -std=gnu++0x
 all: force.o dorpi.o utility.o
 	nvcc ./simulation/main.cu ./build/force.o ./build/dorpi.o ./build/utility.o $(FLAGS) $(Warnings) $(Links) -o all.out
 
-test: ./build/utility.o
+test: utility.o
 	nvcc ./utility/test.cu $(FLAGS) $(Warnings) $(Links) -c -o ./build/utility_test.o
 	nvcc ./test/test.cu ./build/utility.o ./build/utility_test.o $(FLAGS) $(Warnings) $(Links) -o test.out
 
