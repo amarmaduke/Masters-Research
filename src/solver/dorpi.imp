@@ -53,21 +53,33 @@ void print1(thrust::host_vector<thrust::device_ptr<double> > vecs, thrust::host_
 
 }
 
+#define d(x,y) (double)((x))/(double)((y))
+
 template<typename F>
 thrust::host_vector<thrust::device_ptr<double> >
 solve(F functor, double t_i, thrust::device_ptr<double>& y_init, int ptr_size,
       const options& o)
 {
+	///*
 double y_constants[7][7] = {
-{       (1/2),            0,           0,         0,              0,          0,    0},
-{      (3/40),       (9/40),           0,         0,              0,          0,    0},
-{     (44/45),     (-56/15),      (32/9),         0,              0,          0,    0},
-{(19372/6561),(-25360/2187),(64448/6561),(-212/729),              0,          0,    0},
-{ (9017/3168),    (-355/33),(46732/5247),  (49/176),  (-5103/18656),          0,    0},
-{    (35/384),            0,  (500/1113), (125/192),   (-2187/6784),    (11/84),    0},
-{(5179/57600),            0,(7571/16695), (393/640),(-92097/339200),(187/2100),(1/40)}};
+{      1./2.,            0,           0,         0,              0,          0,    0},
+{      d(3,40),       d(9,40),           0,         0,              0,          0,    0},
+{     d(44,45),     d(-56,15),      d(32,9),         0,              0,          0,    0},
+{d(19372,6561),d(-25360,2187),d(64448,6561),d(-212,729),              0,          0,    0},
+{ d(9017,3168),    d(-355,33),d(46732,5247),  d(49,176),  d(-5103,18656),          0,    0},
+{    d(35,384),            0,  d(500,1113), d(125,192),   d(-2187,6784),    d(11,84),    0},
+{d(5179,57600),            0,d(7571,16695),d(393,640),d(-92097,339200),d(187,2100),d(1,40)}};
+	//*/
 
-double t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
+/*
+double ** y_constants = new double*[7];
+for(int i = 0; i < 7; ++i)
+{
+	y_constants[i] = new double[7]();
+}
+*/
+
+double t_constants[6] = {d(1,5), d(3,10),d(4,5), d(8,9), 1, 1};
 
 	//util::print(y_init,ptr_size);
   // Output vector
@@ -93,22 +105,19 @@ double t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
 	double save_freq = (o.t_end - t) / o.save_count;
 
   // Initial force evaluation
-	std::cout << "y before functor call:" << std::endl;
-	util::print(y,ptr_size);
   k[0] = functor(t, y);
-	std::cout << "k[0] after functor call:" << std::endl;
-	util::print(k[0],ptr_size);
-	std::cout << std::endl;
 
   do
   {
     bool failed = false;
     double temp_t, err;
 
-    if(h >= abs(o.t_end - t))
+    if(h >= 1.1*abs(o.t_end - t))
     {
+			std::cout << "pre 10% scale h: " << h << std::endl;
       h = o.t_end - t;
-      done = true;
+      std::cout << "post 10% scale h: " << h << std::endl;
+			done = true;
     }
 
 		if(t >= save_stop)
@@ -119,99 +128,82 @@ double t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
 			save_stop += save_freq;
 		}
 
+		std::cout << "t: " << t << " h: " << h << " t_end: " << o.t_end << std::endl;
+		thrust::device_ptr<double> save = thrust::device_malloc<double>(ptr_size);
     while(true)
     {
       thrust::host_vector<thrust::device_ptr<double> > vecs;
 
       // Function Evaluations
 
-			std::cout << constants[0] << " " << constants[1] << std::endl;
-			for(int i = 0; i < 7; ++i)
-			{
-				std::cout << y_constants[0][i] << std::endl;
-			}
 			thrust::copy_n(y_constants[0],1,constants.begin()+1);
-      std::cout << constants[0] << " " << constants[1] << std::endl;
-			//thrust::for_each_n(constants.begin()+1,1,scale_functor(h));
+			thrust::for_each_n(constants.begin()+1,1,scale_functor(h));
       vecs.push_back(y); vecs.push_back(k[0]);
 
-			std::cout << "k[1]:" << std::endl;
-			print1(vecs,constants,ptr_size);
+			//std::cout << "k[1]:" << std::endl;
 			temp_y = util::linc(handle,ptr_size,constants,vecs);
       temp_t = t + h*t_constants[0];
       k[1] = functor(temp_t, temp_y);
-      //util::print(temp_y,ptr_size);
 			thrust::device_free(temp_y);
-			//std::cout << "Post k[1]" << std::endl;
-			//print1(vecs,constants,ptr_size);
-			//util::print(k[1],ptr_size);
-			std::cout << std::endl;
+			//std::cout << std::endl;
 
-			std::cout << "k[2]:" << std::endl;
+			//std::cout << "k[2]:" << std::endl;
       thrust::copy_n(&y_constants[1][0],2,constants.begin()+1);
       thrust::for_each_n(constants.begin()+1,2,scale_functor(h));
       vecs.push_back(k[1]);
-			print1(vecs,constants,ptr_size);
       temp_y = util::linc(handle,ptr_size,constants,vecs);
       temp_t = t + h*t_constants[1];
       k[2] = functor(temp_t, temp_y);
       thrust::device_free(temp_y);
-			util::print(k[2],ptr_size);
-			std::cout << std::endl;
+			//util::print(k[2],ptr_size);
+			//std::cout << std::endl;
 
-			std::cout << "k[3]:" << std::endl;
+			//std::cout << "k[3]:" << std::endl;
       thrust::copy_n(&y_constants[2][0],3,constants.begin()+1);
       thrust::for_each_n(constants.begin()+1,3,scale_functor(h));
       vecs.push_back(k[2]);
-			print1(vecs,constants,ptr_size);
       temp_y = util::linc(handle,ptr_size,constants,vecs);
       temp_t = t + h*t_constants[2];
       k[3] = functor(temp_t, temp_y);
       thrust::device_free(temp_y);
-			util::print(k[3],ptr_size);
-			std::cout << std::endl;
+			//util::print(k[3],ptr_size);
+			//std::cout << std::endl;
 
-			std::cout << "k[4]:" << std::endl;
+			//std::cout << "k[4]:" << std::endl;
       thrust::copy_n(&y_constants[3][0],4,constants.begin()+1);
       thrust::for_each_n(constants.begin()+1,4,scale_functor(h));
       vecs.push_back(k[3]);
-			print1(vecs,constants,ptr_size);
       temp_y = util::linc(handle,ptr_size,constants,vecs);
       temp_t = t + h*t_constants[3];
       k[4] = functor(temp_t, temp_y);
       thrust::device_free(temp_y);
-			util::print(k[4],ptr_size);
-			std::cout << std::endl;
+			//util::print(k[4],ptr_size);
+			//std::cout << std::endl;
 
-			std::cout << "k[5]:" << std::endl;
+			//std::cout << "k[5]:" << std::endl;
       thrust::copy_n(&y_constants[4][0],5,constants.begin()+1);
       thrust::for_each_n(constants.begin()+1,5,scale_functor(h));
       vecs.push_back(k[4]);
-			print1(vecs,constants,ptr_size);
       temp_y = util::linc(handle,ptr_size,constants,vecs);
       temp_t = t + h*t_constants[4];
       k[5] = functor(temp_t, temp_y);
       thrust::device_free(temp_y);
-			util::print(k[5],ptr_size);
-			std::cout << std::endl;
+			//util::print(k[5],ptr_size);
+			//std::cout << std::endl;
 
-			std::cout << "k[6]:" << std::endl;
+			//std::cout << "k[6]:" << std::endl;
       thrust::copy_n(&y_constants[5][0],6,constants.begin()+1);
       thrust::for_each_n(constants.begin()+1,6,scale_functor(h));
       vecs.push_back(k[5]);
-			print1(vecs,constants,ptr_size);
       temp_y = util::linc(handle,ptr_size,constants,vecs);
       temp_t = t + h*t_constants[5];
       k[6] = functor(temp_t, temp_y);
-			util::print(k[6],ptr_size);
-			std::cout << std::endl;
+			//util::print(k[6],ptr_size);
+			//std::cout << std::endl;
 
       double tnew = temp_t;
       h = tnew - t;
       thrust::device_ptr<double> error_vec;
-
-      int scanf_thing;
-			scanf("%d",&scanf_thing);
 
 			//util::print(k[6],ptr_size);
 
@@ -234,7 +226,9 @@ double t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
                                             max_absolute_functor());
 			util::deep_copy(max_ynew,d_max_ynew,1);
       //std::cout << *max_y << " " << *max_ynew << std::endl;
-			scale_functor scale(1/max(max(*max_y,*max_ynew),1/o.tolerance));
+			std::cout << "max_y: " << abs(*max_y) << " max_ynew: " << abs(*max_ynew) << std::endl;
+			double s = 1/max(max(abs(*max_y),abs(*max_ynew)),1.);
+			scale_functor scale(s);
 			//std::cout << "Label 1" << std::endl;
       thrust::for_each(error_vec, error_vec + ptr_size, scale);
 
@@ -245,6 +239,9 @@ double t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
       thrust::device_free(error_vec);
 
       // Check Error
+			std::cout << "scale s: " << s << std::endl;
+			std::cout << "norm: " << norm << " err: " << err << std::endl;
+			std::cout << "pre error check h: " << h << std::endl;
       if (err > o.tolerance)
       {
         if (not failed)
@@ -256,28 +253,25 @@ double t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
       {
         break;
       }
+			std::cout << "post error check h: " << h << std::endl;
     }
 
     // Adjust step size
+		std::cout << "pre adjust step size h: " << h << std::endl;
     if (not failed)
     {
-      double temp = pow(1.25*(err / o.tolerance),1/5);
-      if (temp > .2)
+      double temp = 1.25*pow(err / o.tolerance,1./5.);
+      std::cout << "temp: " << temp << std::endl;
+			if (temp > .2)
         h = h / temp;
       else
         h = 5*h;
     }
+		std::cout << "post adjust step size h: " << h << std::endl;
 
     // Update
-		std::cout << "Pre Update: y:" << std::endl;
-		util::print(y,ptr_size);
-		std::cout << "temp_y:" << std::endl;
-		util::print(temp_y,ptr_size);
 
     util::deep_copy<double>(y,temp_y,ptr_size);
-
-		std::cout << "Post Update: y:" << std::endl;
-		util::print(y,ptr_size);
 
     thrust::device_free(temp_y);
     t = temp_t;
@@ -288,17 +282,14 @@ double t_constants[6] = {(1/5), (3/10), (4/5), (8/9), 1, 1};
     }
     k[0] = k[6];
 
+		int stop_point;
+		scanf("%d",&stop_point);
+
   } while (not done);
 
 	thrust::device_ptr<double> save = thrust::device_malloc<double>(ptr_size);
 	util::deep_copy(save,y,ptr_size);
 	output.push_back(save);
-
-	std::cout << "Grid:inside dorpi:" << std::endl;
-	for(int i = 0; i < output.size(); ++i)
-	{
-		util::print(output[i],ptr_size);
-	}
 
 	// Cleanup
   thrust::device_free(k[0]);
