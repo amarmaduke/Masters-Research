@@ -67,8 +67,8 @@ void ode_test()
 
   state_type x = init;
 
-  integrate_const(make_controlled(1.0e-6, 1.0e-6, stepper_type()),
-                  F, x, 0.0, 10.0, 1.0);
+  integrate_const(make_dense_output(1.0e-6, 1.0e-6, stepper_type()),
+                  F, x, 0.0, 10.0, 1.0, O);
 
 }
 
