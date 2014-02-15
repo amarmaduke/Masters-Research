@@ -2,8 +2,8 @@
 #include <vector>
 #include <stdio.h>
 
-#include "../boost/numeric/odeint.hpp"
-#include "../boost/numeric/odeint/external/thrust/thrust.hpp"
+#include <boost/numeric/odeint.hpp>
+#include <boost/numeric/odeint/external/thrust/thrust.hpp>
 
 #include "force.h"
 #include "../solver/dorpi.h"
@@ -44,7 +44,7 @@ void ode_test()
   int size = p.m*p.n;
   thrust::host_vector< value_type > init(2*size+2);
   thrust::device_ptr<double> d_delta = thrust::device_malloc<double>(p.m);
-  for(int j = 0; j < pm; ++j)
+  for(int j = 0; j < p.m; ++j)
   {
     d_delta[j] = j;
     for(int i = 0; i < p.n; ++i)
@@ -63,11 +63,12 @@ void ode_test()
     stepper_type;
 
   test_functor F;
+  test_observer O;
 
-  state_type = init;
+  state_type x = init;
 
   integrate_const(make_controlled(1.0e-6, 1.0e-6, stepper_type()),
-                  F, x, 0, 10, 1, test_observer);
+                  F, x, 0.0, 10.0, 1.0);
 
 }
 
