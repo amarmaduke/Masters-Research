@@ -2,11 +2,80 @@
 #include <vector>
 #include <stdio.h>
 
+#include "../boost/numeric/odeint.hpp"
+#include "../boost/numeric/odeint/external/thrust/thrust.hpp"
+
 #include "force.h"
 #include "../solver/dorpi.h"
 
+using namespace boost::numeric::odeint;
+
+typedef double value_type;
+typedef thrust::device_vector< value_type > state_type;
+
+struct test_functor
+{
+
+  void operator() (const state_type &x, state_type &dxdt, const value_type dt)
+  {
+    thrust::copy(x.begin(), x.end(), dxdt.begin());
+  }
+
+};
+
+struct test_observer
+{
+
+  template<typename State >
+  void operator() (const State &x, value_type t )
+  {
+    for(int i = 0; i < x.size(); ++i)
+    {
+      std::cout << x[i] << " ";
+    }
+    std::cout << std::endl;
+  }
+
+};
+
+void ode_test()
+{
+  parameter p;
+  int size = p.m*p.n;
+  thrust::host_vector< value_type > init(2*size+2);
+  thrust::device_ptr<double> d_delta = thrust::device_malloc<double>(p.m);
+  for(int j = 0; j < pm; ++j)
+  {
+    d_delta[j] = j;
+    for(int i = 0; i < p.n; ++i)
+    {
+      int index = i + p.n*j;
+      init[index] = d_delta[j];
+      init[index+size] = i+1;
+    }
+  }
+  init[0+2*size] = -5;
+  init[1+2*size] = 12;
+  p.delta = d_delta.get();
+
+  typedef
+    runge_kutta_dopri5< state_type, value_type, state_type, value_type >
+    stepper_type;
+
+  test_functor F;
+
+  state_type = init;
+
+  integrate_const(make_controlled(1.0e-6, 1.0e-6, stepper_type()),
+                  F, x, 0, 10, 1, test_observer);
+
+}
+
 int main()
 {
+  ode_test();
+
+  /*
   double t = 0;
   double step = .01;
   double t_end = .05;
@@ -54,5 +123,6 @@ int main()
 
   thrust::device_free(init);
   thrust::device_free(d_delta);
+  */
   return 0;
 }
