@@ -292,11 +292,16 @@ void combine( double * const out_x,
   out_y[index] = f_1y[index] + f_2y[index];
 }
 
-thrust::device_ptr<double>
-force_functor::operator()(double t, thrust::device_ptr<double> y)
+void
+force_functor::operator() ( const thrust::device_vector< double > &x,
+                            thrust::device_vector< double > &dxdt,
+                            const double dt)
 {
   dim3 grid(1,1,1), blocks(this->state.m,this->state.n,1);
   int size = this->state.n * this->state.m;
+
+  thrust::device_ptr<double> y = thrust::device_malloc<double>(2*size+2);
+  thrust::copy(x.begin(),x.end(),y.get());
 
   thrust::device_ptr<double> out = thrust::device_malloc<double>(2*size+2);
   thrust::device_ptr<double> f_1 = thrust::device_malloc<double>(2*size+2);
@@ -306,26 +311,26 @@ force_functor::operator()(double t, thrust::device_ptr<double> y)
   compute_lengths<<<grid,blocks>>>( lens.get(), y.get(), y.get()+size,
                                     this->state.delta, this->state);
   //std::cout << "functor call: lens:" << std::endl;
-	//util::print(lens,size);
-	compute_fiber_dependent<<<grid,blocks>>>( f_1.get(), f_1.get()+size, y.get(),
+  //util::print(lens,size);
+  compute_fiber_dependent<<<grid,blocks>>>( f_1.get(), f_1.get()+size, y.get(),
                       y.get()+size, lens.get(), this->state.delta, this->state);
-	f_1[2*size] = 0; f_1[2*size+1] = 0;
-	f_2[2*size] = 0; f_2[2*size+1] = 0;
-	//std::cout << "functor call: fiber_dep:" << std::endl;
-	//util::print(f_1,2*size+2);
+  f_1[2*size] = 0; f_1[2*size+1] = 0;
+  f_2[2*size] = 0; f_2[2*size+1] = 0;
+  //std::cout << "functor call: fiber_dep:" << std::endl;
+  //util::print(f_1,2*size+2);
   compute_n_body_vdw<<<grid,blocks>>>(f_2.get(), f_2.get()+size,
           f_2.get()+2*size, y.get(), y.get()+size, y.get()+2*size, this->state);
-	//std::cout << "functor call: n_body:" << std::endl;
-	//util::print(f_2,2*size+2);
+  //std::cout << "functor call: n_body:" << std::endl;
+  //util::print(f_2,2*size+2);
   thrust::transform(f_1,f_1+2*size+2,f_2,out,thrust::plus<double>());
 
-	//std::cout << "functor call: total force:" << std::endl;
-	//util::print(out,2*size+2);
+  thrust::copy(out,out+2*size+2,dxdt.begin());
+  //std::cout << "functor call: total force:" << std::endl;
+  //util::print(out,2*size+2);
 
   //combine<<<grid,blocks>>>(out_x,out_y,f_1x,f_1y,f_2x,f_2y,p);
 
   thrust::device_free(f_1);
   thrust::device_free(f_2);
   thrust::device_free(lens);
-  return out;
 }

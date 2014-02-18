@@ -6,6 +6,9 @@ C11=--compiler-options -std=gnu++0x
 odeint: force.o utility.o
 	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o -I ~/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
 
+home: force.o utility.o
+	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o -I ~/Research/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
+
 all: force.o dorpi.o utility.o
 	nvcc ./simulation/main.cu ./build/force.o ./build/dorpi.o ./build/utility.o $(FLAGS) $(Warnings) $(Links) -o all.out
 

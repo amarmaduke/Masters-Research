@@ -1,4 +1,5 @@
 #include <thrust/device_ptr.h>
+#include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
 #include "parameter.h"
@@ -13,7 +14,9 @@ struct force_functor
 
   force_functor(parameter p) : state(p) { };
 
-  thrust::device_ptr<double> operator() (double t,thrust::device_ptr<double> y);
+  void operator() (const thrust::device_vector< double > &x,
+                   thrust::device_vector< double > &dxdt,
+                   const double dt);
 };
 
 #endif
