@@ -17,8 +17,8 @@ struct parameter
 
   parameter()
   {
-    m = 3;
-    n = 3;
+    m = 1;
+    n = 4;
     beta = 1;
     len = 1;
     gamma = 100;
@@ -26,7 +26,7 @@ struct parameter
     sigma = 1;
 
     sub_h = 1;
-    sub_count = 31;
+    sub_count = 10;
   };
 
 };

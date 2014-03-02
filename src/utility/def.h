@@ -7,4 +7,6 @@
 #define cudaD2H cudaMemcpyDeviceToHost
 #define cudaD2D cudaMemcpyDeviceToDevice
 
+const double PI = 3.141592653589793238463;
+
 #endif // _DEF_H_

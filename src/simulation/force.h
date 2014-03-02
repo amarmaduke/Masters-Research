@@ -2,7 +2,10 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
+#include <cmath>
+
 #include "parameter.h"
+#include "../utility/def.h"
 #include "../utility/utility.h"
 
 #ifndef FORCE_H
