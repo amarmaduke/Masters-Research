@@ -3,11 +3,11 @@ Warnings=-g -G
 Links=-lcublas
 C11=--compiler-options -std=gnu++0x
 
-odeint: force.o utility.o
-	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o -I ~/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
+odeint: force.o utility.o json.o
+	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o -I ~/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
 
-home: force.o utility.o
-	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o -I ~/Research/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
+home: force.o utility.o json.o json_checker.o
+	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o -I ~/Research/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
 
 all: force.o dorpi.o utility.o
 	nvcc ./simulation/main.cu ./build/force.o ./build/dorpi.o ./build/utility.o $(FLAGS) $(Warnings) $(Links) -o all.out
@@ -24,6 +24,12 @@ dorpi.o: utility.o
 
 utility.o:
 	nvcc ./utility/utility.cu $(FLAGS) $(Warnings) -c -o ./build/utility.o
+
+json_checker.o:
+	nvcc ./json/JSON_checker.c $(FLAGS) $(Warnings) -c -o ./build/json_checker.o
+
+json.o: json_checker.o
+	nvcc ./json/json.cpp $(FLAGS) $(Warnings) -c -o ./build/json.o
 
 clean:
 	rm -rf ./build/*o

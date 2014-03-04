@@ -71,7 +71,7 @@ void ode_test()
 	std::vector<double> time_range;
 	//state_type temp(2*size + 2);
 
-/*	
+/*
 	temp.begin();
 	F(x,temp,0);
 	double t_d = temp[2*size];
