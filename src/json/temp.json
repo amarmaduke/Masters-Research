@@ -1,0 +1,13 @@
+{
+	"m":1,
+	"n":4,
+	"beta":-1.0e+1,
+	"len":1.0E-1,
+	"gamma":1.00e-200,
+	"epsilon":1,
+	"sigma":1,
+	"sub_h":1,
+	"sub_count":10,
+	"delta":[-1, 0],
+	"test":[true,false,null,0]
+}

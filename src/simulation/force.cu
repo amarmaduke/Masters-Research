@@ -44,7 +44,6 @@ void compute_fiber_dependent( double * const out_x,
 
   int index = j*n + i;
 
-	
 	double xp = i == 0 ? delta[j] : in_x[index-1];
   double xpp = i == 0 || i == 1 ? delta[j] : in_x[index-2];
 
@@ -162,7 +161,7 @@ void compute_fiber_dependent( double * const out_x,
 
   double total_force_x = -(bending_x + extensible_x);
   double total_force_y = -(bending_y + extensible_y + vdW_y);
-	
+
 	out_x[index] = total_force_x;
   out_y[index] = total_force_y;
 }
@@ -238,7 +237,7 @@ void compute_n_body_vdw(double * const out_x,
     }
   }
 
-	
+
   double s_x = in_s[0];
   double s_y = in_s[1];
   double s_vdW_x = 0, s_vdW_y = 0;
@@ -265,7 +264,7 @@ void compute_n_body_vdw(double * const out_x,
 
     vdW_x = vdW_x - LJval*temp_x;
     vdW_y = vdW_y - LJval*temp_y;
-		
+
 		s_vdW_x = s_vdW_x + LJval*temp_x;
     s_vdW_y = s_vdW_y + LJval*temp_y;
   }
@@ -282,25 +281,6 @@ void compute_n_body_vdw(double * const out_x,
 	out_s_y[index] = s_vdW_y;
 }
 
-__global__
-void combine( double * const out_x,
-              double * const out_y,
-              const double * const f_1x,
-              const double * const f_1y,
-              const double * const f_2x,
-              const double * const f_2y,
-              const parameter p)
-{
-  int j = threadIdx.x; // What fiber we're on
-  int i = threadIdx.y; // What particle it is
-
-  double n = p.n;
-  int index = j*n + i;
-
-  out_x[index] = f_1x[index] + f_2x[index];
-  out_y[index] = f_1y[index] + f_2y[index];
-}
-
 void
 force_functor::operator() ( const thrust::device_vector< double > &x,
                             thrust::device_vector< double > &dxdt,
@@ -311,7 +291,6 @@ force_functor::operator() ( const thrust::device_vector< double > &x,
 
   thrust::device_ptr<double> y = thrust::device_malloc<double>(2*size+2);
 	thrust::copy(x.begin(),x.end(),y);
-
 
   thrust::device_ptr<double> out = thrust::device_malloc<double>(2*size);
   thrust::device_ptr<double> f_1 = thrust::device_malloc<double>(2*size);
@@ -328,17 +307,17 @@ force_functor::operator() ( const thrust::device_vector< double > &x,
                       y.get()+size, lens.get(), this->state.delta, this->state);
   //std::cout << "functor call: fiber_dep:" << std::endl;
   //util::print(f_1,2*size);
-  
+
 	compute_n_body_vdw<<<grid,blocks>>>(f_2.get(), f_2.get()+size,
           f_3.get(), f_3.get()+size, y.get(), y.get()+size, y.get()+2*size, this->state);
   //std::cout << "functor call: n_body:" << std::endl;
   //util::print(f_2,2*size);
 	double sub_x = thrust::reduce(f_3,f_3+size);
 	double sub_y = thrust::reduce(f_3+size,f_3+2*size);
-  
+
 	thrust::transform(f_1,f_1+2*size,f_2,out,thrust::plus<double>());
 	thrust::copy(out,out+2*size,dxdt.begin());
-	
+
 	dxdt[2*size] = sub_x;
 	dxdt[2*size+1] = sub_y;
 /*
@@ -349,7 +328,7 @@ force_functor::operator() ( const thrust::device_vector< double > &x,
 	}
 	std::cout << std::endl;
 */
-	
+
   //std::cout << "functor call: total force:" << std::endl;
   //util::print(out,2*size+2);
 /*
@@ -376,4 +355,6 @@ force_functor::operator() ( const thrust::device_vector< double > &x,
   thrust::device_free(f_2);
   thrust::device_free(f_3);
 	thrust::device_free(lens);
+  thrust::device_free(out);
+  thrust::device_free(y);
 }
