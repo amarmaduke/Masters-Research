@@ -23,20 +23,26 @@ struct test_functor
 
 };
 
+std::vector<double> g_time_point;
+std::vector<double*> g_save;
+
 struct test_observer
 {
+	std::vector<double>& time_point;
+	std::vector<double*>& save;
+
+	test_observer(std::vector<double>& t,
+			std::vector<double* >& s) : time_point(t), save(s) { }
 
   template<typename State >
   void operator() (const State &x, value_type t )
   {
-		std::cout << "time: " << t << std::endl;
-    for(int i = 0; i < x.size(); ++i)
-    {
-      std::cout << x[i] << " ";
-    }
-    std::cout << std::endl;
-  }
-
+		time_point.push_back(t);
+		double* s = new double[x.size()];
+		thrust::copy(x.begin(),x.end(),s);
+  	save.push_back(s);
+		//std::cout << "t: " << t << std::endl;
+	}
 };
 
 void ode_test()
@@ -64,7 +70,7 @@ void ode_test()
     stepper_type;
 
   force_functor F(p);
-  test_observer O;
+  test_observer O(g_time_point,g_save);
 
   state_type x = init;
 
@@ -89,10 +95,59 @@ void ode_test()
 		printf("%4.12f\n",t_d);
 	}
   */
+	{ // Burned run
+  force_functor F(p);
+	std::vector<double> v;
+	std::vector<double*> vp;
 
-	integrate_const(make_controlled(1.0e-6, 1.0e-6, stepper_type()),
+  test_observer O(v,vp);
+
+  state_type x = init;
+
+	integrate_const(make_controlled(1.0e-11, 1.0e-11, stepper_type()),
                   F, x, 0.0, 10.0, 1., O);
+	}
 
+	cudaEvent_t start, stop;
+	float time;
+
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
+	cudaEventRecord(start,0);
+	for(int i = 0; i < 0; ++i)
+	{
+		force_functor F(p);
+		std::vector<double> v;
+		std::vector<double*> vp;
+
+  	test_observer O(v,vp);
+
+  	state_type x = init;
+		std::cout << "i: " << i << std::endl;
+		integrate_const(make_controlled(1.0e-11, 1.0e-11, stepper_type()),
+                  F, x, 0.0, 10.0, 1., O);
+	}
+	cudaEventRecord(stop,0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&time,start,stop);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+
+
+	/*
+	for(int i = 0; i < g_save.size(); ++i)
+	{
+		double* s = g_save[i];
+		std::cout << "t: " << g_time_point[i] << std::endl;
+		for(int j = 0; j < 2*size+2; ++j)
+		{
+			std::cout << s[j] << " ";
+		}
+		std::cout << std::endl;
+	}*/
+
+	//std::cout << "Total time: " << time << " ms, " << time/1000. << " s" << std::endl;
 }
 
 int main()

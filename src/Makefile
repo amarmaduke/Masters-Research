@@ -3,7 +3,7 @@ Warnings=-g -G
 Links=-lcublas
 C11=--compiler-options -std=gnu++0x
 
-odeint: force.o utility.o json.o
+odeint: force.o utility.o json.o json_checker.o
 	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o -I ~/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
 
 home: force.o utility.o json.o json_checker.o
@@ -26,10 +26,10 @@ utility.o:
 	nvcc ./utility/utility.cu $(FLAGS) $(Warnings) -c -o ./build/utility.o
 
 json_checker.o:
-	nvcc ./json/JSON_checker.c $(FLAGS) $(Warnings) -c -o ./build/json_checker.o
+	nvcc ./json/JSON_checker.cu $(FLAGS) $(Warnings) -c -o ./build/json_checker.o
 
 json.o: json_checker.o
-	nvcc ./json/json.cpp $(FLAGS) $(Warnings) -c -o ./build/json.o
+	nvcc ./json/json.cu $(FLAGS) $(Warnings) -c -o ./build/json.o
 
 clean:
 	rm -rf ./build/*o
