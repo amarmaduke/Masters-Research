@@ -1,10 +1,11 @@
-FLAGS=-arch=compute_20 -code=sm_20 -DBOOST_NOINLINE='__attribute__ ((noinline))'
+FLAGS=-arch=compute_20 -code=sm_20 -I/home/marmaduke/include/ -L/home/marmaduke/lib
+BoostFix=-DBOOST_NOINLINE='__attribute__ ((noinline))'
 Warnings=-g -G
 Links=-lcublas
 C11=--compiler-options -std=gnu++0x
 
 odeint: force.o utility.o json.o json_checker.o
-	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o -I ~/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
+	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o $(BoostFix) $(FLAGS) $(Warnings) $(Links) -o odeint.out
 
 home: force.o utility.o json.o json_checker.o
 	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o -I ~/Research/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
@@ -33,3 +34,4 @@ json.o: json_checker.o
 
 clean:
 	rm -rf ./build/*o
+	rm -rf ./*.out

@@ -147,7 +147,7 @@ void ode_test()
 		std::cout << std::endl;
 	}*/
 
-	//std::cout << "Total time: " << time << " ms, " << time/1000. << " s" << std::endl;
+	std::cout << "Total time: " << time << " ms, " << time/1000. << " s" << std::endl;
 }
 
 int main()
