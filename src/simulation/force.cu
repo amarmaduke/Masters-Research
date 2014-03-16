@@ -282,63 +282,88 @@ void compute_n_body_vdw(double * const out_x,
 }
 
 void
-force_functor::operator() ( const thrust::device_vector< double > &x,
-                            thrust::device_vector< double > &dxdt,
+force_functor::operator() ( const thrust::host_vector< double > &x,
+                            thrust::host_vector< double > &dxdt,
                             const double dt)
 {
   dim3 grid(1,1,1), blocks(this->state.m,this->state.n,1);
   int size = this->state.n * this->state.m;
+	cudaStream_t s;
+	cudaStreamCreate(&s);
 
   thrust::device_ptr<double> y = thrust::device_malloc<double>(2*size+2);
-	thrust::copy(x.begin(),x.end(),y);
+	//cudaDeviceSynchronize();
+	//cudaMemcpy(y.get(),&x[0],sizeof(double)*2+2,cudaMemcpyHostToDevice);
+	std::copy(x.begin(),x.end(),y);
 
+	/*
+	std::cout << "x: " << std::endl;
+	for(int i = 0; i < 2*size+2; ++i)
+	{
+		std::cout << x[i] << " ";
+	}
+	std::cout << std::endl;
+
+
+	std::cout << "y: " << std::endl;
+	for(int i = 0; i < 2*size+2; ++i)
+	{
+		std::cout << y[i] << " ";
+	}
+	std::cout << std::endl;
+	*/
+  thrust::device_ptr<double> lens = thrust::device_malloc<double>(size);
   thrust::device_ptr<double> out = thrust::device_malloc<double>(2*size);
   thrust::device_ptr<double> f_1 = thrust::device_malloc<double>(2*size);
   thrust::device_ptr<double> f_2 = thrust::device_malloc<double>(2*size);
 	thrust::device_ptr<double> f_3 = thrust::device_malloc<double>(2*size);
-  thrust::device_ptr<double> lens = thrust::device_malloc<double>(size);
 
-  compute_lengths<<<grid,blocks>>>( lens.get(), y.get(), y.get()+size,
+	//cudaDeviceSynchronize();
+	
+	compute_lengths<<<grid,blocks,0,s>>>( lens.get(), y.get(), y.get()+size,
                                     this->state.delta, this->state);
   //std::cout << "functor call: lens:" << std::endl;
   //util::print(lens,size);
 
-  compute_fiber_dependent<<<grid,blocks>>>( f_1.get(), f_1.get()+size, y.get(),
+  compute_fiber_dependent<<<grid,blocks,0,s>>>( f_1.get(), f_1.get()+size, y.get(),
                       y.get()+size, lens.get(), this->state.delta, this->state);
   //std::cout << "functor call: fiber_dep:" << std::endl;
   //util::print(f_1,2*size);
 
-	compute_n_body_vdw<<<grid,blocks>>>(f_2.get(), f_2.get()+size,
+	compute_n_body_vdw<<<grid,blocks,0,s>>>(f_2.get(), f_2.get()+size,
           f_3.get(), f_3.get()+size, y.get(), y.get()+size, y.get()+2*size, this->state);
   //std::cout << "functor call: n_body:" << std::endl;
   //util::print(f_2,2*size);
+	//cudaStreamSynchronize(s);
+
 	double sub_x = thrust::reduce(f_3,f_3+size);
 	double sub_y = thrust::reduce(f_3+size,f_3+2*size);
 
 	thrust::transform(f_1,f_1+2*size,f_2,out,thrust::plus<double>());
 	thrust::copy(out,out+2*size,dxdt.begin());
 
-	dxdt[2*size] = sub_x;
-	dxdt[2*size+1] = sub_y;
-/*
+	//cudaMemcpy(&dxdt[0],out.get(),sizeof(double)*2,cudaMemcpyDeviceToHost);
+	dxdt[2*size] = sub_x + this->state.mu;
+	dxdt[2*size+1] = sub_y - this->state.lambda;
+	
+	/*
 	std::cout << "Out: " << std::endl;
-  for(int i = 0; i < 2*size+2; ++i)
+  for(int i = 0; i < 2*size; ++i)
 	{
 		std::cout << out[i] << " ";
 	}
 	std::cout << std::endl;
-*/
 
   //std::cout << "functor call: total force:" << std::endl;
   //util::print(out,2*size+2);
-/*
+
 	std::cout << "Dxdt: " << std::endl;
 	for(int i = 0; i < 2*size+2; ++i)
 	{
 		std::cout << dxdt[i] << " ";
 	}
 	std::cout << std::endl;
-*/
+	*/
   //combine<<<grid,blocks>>>(out_x,out_y,f_1x,f_1y,f_2x,f_2y,p);
 
 	/*double * test = new double;
@@ -350,6 +375,7 @@ force_functor::operator() ( const thrust::device_vector< double > &x,
 		scanf("%d",&stop);
 	}*/
 
+	cudaStreamDestroy(s);
 
   thrust::device_free(f_1);
   thrust::device_free(f_2);

@@ -17,14 +17,15 @@ struct parameter
   double gamma;
   double epsilon;
   double sigma;
+	double lambda;
+	double mu;
 
   double sub_h;
   double sub_count;
   double * delta;
 
-  parameter()
+  parameter(json::Object& obj)
   {
-    json::Object obj = json::parse(std::cin,10);
     bool failed = false;
 
     if(obj.count("m") > 0)
@@ -76,6 +77,20 @@ struct parameter
     }else
       failed = true;
 
+		if(obj.count("lambda") > 0)
+		{
+			json::Number* temp = as<json::Number>(obj["lambda"]);
+			lambda = temp->val;
+		}else
+			failed = true;
+
+		if(obj.count("mu") > 0)
+		{
+			json::Number* temp = as<json::Number>(obj["mu"]);
+			mu = temp->val;
+		}else
+			failed = true;
+
     if(obj.count("sub_h") > 0)
     {
       json::Number* temp = as<json::Number>(obj["sub_h"]);
@@ -90,6 +105,7 @@ struct parameter
     }else
       failed = true;
 
+/*
     if(obj.count("delta") > 0)
     {
       json::Array* temp = as<json::Array>(obj["delta"]);
@@ -102,7 +118,7 @@ struct parameter
       }
       cudaMemcpy(delta,temp2,sizeof(double)*temp->size(),cudaMemcpyHostToDevice);
     }
-    
+    */
 		if(failed)
     {
       std::cout << "JSON file missing parameters" << std::endl;

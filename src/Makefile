@@ -1,36 +1,42 @@
 FLAGS=-arch=compute_20 -code=sm_20 -I/home/marmaduke/include/ -L/home/marmaduke/lib
 BoostFix=-DBOOST_NOINLINE='__attribute__ ((noinline))'
 Warnings=-g -G
-Links=-lcublas
+Links=-lcublas -lboost_thread -lboost_system
 C11=--compiler-options -std=gnu++0x
+BuildDir=/home/marmaduke/Masters-Research/src/build
 
-odeint: force.o utility.o json.o json_checker.o
-	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o $(BoostFix) $(FLAGS) $(Warnings) $(Links) -o odeint.out
+odeint: $(BuildDir)/force.o $(BuildDir)/json.o $(BuildDir)/json_checker.o $(BuildDir)/main.o
+	nvcc ./simulation/test.cpp $^ $(BoostFix) $(FLAGS) $(Warnings) $(Links) -o odeint.out
+
+test2: jacobi json.o json_checker.o
+	nvcc ./simulation/test.cpp ./build/jacobi.o ./build/json.o ./build/json_checker.o $(BoostFix) $(Flags) $(Warnings) -o test2.out
+
+jacobi: utility.o
+	nvcc ./simulation/jacobi.cu $(BoostFix) $(FLAGS) $(Warnings) -c -o ./build/jacobi.o
+
+$(BuildDir)/main.o: $(BuildDir)/utility.o $(BuildDir)/json.o $(BuildDir)/force.o
+	nvcc ./simulation/main.cu $(BoostFix) $(FLAGS) $(Warnings) -c -o $@
 
 home: force.o utility.o json.o json_checker.o
 	nvcc ./simulation/main.cu ./build/force.o ./build/utility.o ./build/json.o ./build/json_checker.o -I ~/Research/Masters-Research/src/ $(FLAGS) $(Warnings) $(Links) -o odeint.out
 
-all: force.o dorpi.o utility.o
-	nvcc ./simulation/main.cu ./build/force.o ./build/dorpi.o ./build/utility.o $(FLAGS) $(Warnings) $(Links) -o all.out
+force: $(BuildDir)/force.o
+$(BuildDir)/force.o: $(BuildDir)/utility.o
+	nvcc ./simulation/force.cu $(FLAGS) $(Warnings) -c -o $@
 
-test: utility.o
-	nvcc ./utility/test.cu $(FLAGS) $(Warnings) $(Links) -c -o ./build/utility_test.o
-	nvcc ./test/test.cu ./build/utility.o ./build/utility_test.o $(FLAGS) $(Warnings) $(Links) -o test.out
+$(BuildDir)/dorpi.o: $(BuildDir)/utility.o
+	nvcc ./solver/dorpi.cu $(FLAGS) $(Warnings) -c -o $@
 
-force.o: utility.o
-	nvcc ./simulation/force.cu $(FLAGS) $(Warnings) -c -o ./build/force.o
+utility: $(BuildDir)/utility.o
+$(BuildDir)/utility.o:
+	nvcc ./utility/utility.cu $(FLAGS) $(Warnings) -c -o $@
 
-dorpi.o: utility.o
-	nvcc ./solver/dorpi.cu $(FLAGS) $(Warnings) -c -o ./build/dorpi.o
+json: $(BuildDir)/json.o $(BuildDir)/json_checker.o
+$(BuildDir)/json.o: $(BuildDir)/json_checker.o
+	nvcc ./json/json.cu $(FLAGS) $(Warnings) -c -o $@
 
-utility.o:
-	nvcc ./utility/utility.cu $(FLAGS) $(Warnings) -c -o ./build/utility.o
-
-json_checker.o:
-	nvcc ./json/JSON_checker.cu $(FLAGS) $(Warnings) -c -o ./build/json_checker.o
-
-json.o: json_checker.o
-	nvcc ./json/json.cu $(FLAGS) $(Warnings) -c -o ./build/json.o
+$(BuildDir)/json_checker.o:
+	nvcc ./json/JSON_checker.cu $(FLAGS) $(Warnings) -c -o $@
 
 clean:
 	rm -rf ./build/*o
