@@ -200,14 +200,14 @@ void compute_other( double* const out_x,
   atomicAdd(out_x+index,total_force_x);
   atomicAdd(out_y+index,total_force_y);
   atomicAdd(out_s,s_vdW_sx);
-  atomicAdd(out+s+1,s_vdW_sy);
+  atomicAdd(out_s+1,s_vdW_sy);
 }
 
 __global__
-void compute_n_body(double* out_x
-                    double* out_y
-                    double* const in_x
-                    double* const in_y
+void compute_n_body(double* const out_x,
+                    double* const out_y,
+                    const double* const in_x,
+                    const double* const in_y,
                     const parameter p)
 {
   const int row = blockIdx.y + threadIdx.y;
@@ -222,7 +222,8 @@ void compute_n_body(double* out_x
 
   if(row >= size or col >= size
       or (j == j_ and (i_ == i or i_ + 1 == i or i_ - 1 == i)))
-  else
+  {
+	}else
   {
     double x = in_x[row];
     double y = in_y[row];
@@ -262,7 +263,7 @@ force_functor::operator() ( const vector_type &x,
   dim3 block_other(B,1,1), thread_other(K,1,1);
   dim3 block_nbody(B,B,1), thread_nbody(K,K,1);
 
-  double* in = x.data().get();
+  const double* in = x.data().get();
   double* out = dxdt.data().get();
 
   cudaStream_t s1, s2;
@@ -270,12 +271,12 @@ force_functor::operator() ( const vector_type &x,
   cudaStreamCreate(&s2);
 
   compute_other<<<block_other,thread_other,0,s1>>>
-                (out,out+size,out+2*size,in,in+size,in+2*size,p);
+                (out,out+size,out+2*size,in,in+size,in+2*size,this->state);
   compute_n_body<<<block_nbody,thread_nbody,0,s2>>>
-                (out,out+size,in,in+size,p);
+                (out,out+size,in,in+size,this->state);
 
-  dxdt[2*size] = sub_x + this->state.mu;
-  dxdt[2*size+1] = sub_y - this->state.lambda;
+  dxdt[2*size] += this->state.mu;
+  dxdt[2*size+1] -= this->state.lambda;
 
   cudaStreamDestroy(s1);
   cudaStreamDestroy(s2);

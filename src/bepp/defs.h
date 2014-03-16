@@ -1,4 +1,7 @@
-#include <thrust/device_vector>
+#include <thrust/device_vector.h>
+#include <boost/numeric/odeint.hpp>
+
+using namespace boost::numeric::odeint;
 
 #ifndef DEFS_H
 #define DEFS_H

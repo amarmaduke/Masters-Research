@@ -82,16 +82,16 @@ void ode_test(json::Object& obj)
 
   cudaEventRecord(stop,0);
   cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&time,start,stop);
+  cudaEventElapsedTime(&timer,start,stop);
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
 
-  std::cout << "Total time: " << time << " ms, " << time/1000. << " s" << std::endl;
+  std::cout << "Total time: " << timer << " ms, " << timer/1000. << " s" << std::endl;
 }
 
 int main()
 {
-  json::Object obj = json::parse(std::cin);
+  json::Object obj = json::parse(std::cin,10);
   ode_test(obj);
   return 0;
 }
