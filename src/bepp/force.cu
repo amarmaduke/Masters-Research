@@ -32,7 +32,7 @@ void compute_other( double* const out_x,
                     const double* const in_s,
                     const parameter p)
 {
-  int index = blockIdx.x + threadIdx.x;
+  int index = blockDim.x * blockIdx.x + threadIdx.x;
   int size = p.n*p.m;
 
   if(index >= size)
@@ -232,6 +232,7 @@ void compute_n_body(double* const out_x,
 	{
   	position(j,i,row,p);
   	position(j_,i_,column+k,p);
+		
 		if(row < size and column+k < size and (j != j_ or (i_ != i and i_ + 1 != i and i_ - 1 != i)))
     {
 			x = in_x[row];
@@ -256,8 +257,7 @@ void compute_n_body(double* const out_x,
     	double vdW_x = -LJval*temp_x;
     	double vdW_y = -LJval*temp_y;
 
-			//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y);
-
+			//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
 			out_x[row] += vdW_x;
 			out_y[row] += vdW_y;
   	}
@@ -282,8 +282,8 @@ force_functor::operator() ( const vector_type &x,
   dim3 block_other(B,1,1), thread_other(K,1,1);
   dim3 block_nbody(B,1,1), thread_nbody(K,1,1);
 
-  const value_type* in = x.data().get();
-  value_type* out = dxdt.data().get();
+  const value_type* const in = x.data().get();
+  value_type* const out = dxdt.data().get();
 
   cudaStream_t s1, *s2;
 	s2 = (cudaStream_t*) malloc(B * sizeof(cudaStream_t));
@@ -308,11 +308,36 @@ force_functor::operator() ( const vector_type &x,
   for(int i = 0; i < B; ++i)
 	{
 		cudaEventSynchronize(e2[i]);
-		value_type* out_ptr = nbody + i*K;
-		const value_type* in_ptr = in + i*K;
 		compute_n_body<<<block_nbody,thread_nbody,0,s2[i]>>>
-                	(out_ptr,out_ptr+size,in_ptr,in_ptr+size,i,this->state);
+                	(nbody,nbody+size,in,in+size,i,this->state);
+
 		cudaEventRecord(e2[i],s2[i]);
+		
+		/*
+		std::cout << "Ptrs: K*i: " << (K*i) << std::endl;
+		std::cout << "outptr: " << out_ptr << " inptr: " << in_ptr << std::endl;
+		std::cout << "nbody: " << nbody << " in: " << in << std::endl << std::endl;
+		std::cout << "In: " << std::endl;
+		double* t2 = new double[2*size+2];
+		cudaMemcpy(t2,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
+		for(int j = 0; j < 2*size+2; ++j)
+		{
+			std::cout << t2[j] << " ";
+		}
+		std::cout << std::endl << std::endl;
+
+		std::cout << "Nbody: " << std::endl;
+		double* t1 = new double[2*size];
+		cudaMemcpy(t1,nbody,sizeof(double)*2*size,cudaMemcpyDeviceToHost);
+		for(int j = 0; j < 2*size; ++j)
+		{
+			std::cout << t1[j] << " ";
+		}
+		std::cout << std::endl << std::endl;
+	
+		free(t1);
+		free(t2);
+		*/
 	}
 	
 	cudaEventSynchronize(e1);
