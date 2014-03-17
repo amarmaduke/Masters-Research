@@ -67,7 +67,7 @@ void ode_test(json::Object& obj)
   observer O(v,vp);
 
   integrate_const(make_controlled(1.0e-11, 1.0e-11, stepper_type()),
-                F, init, 0.0, 100.0, 20., O);
+                F, init, 0., 100., 25., O);
 
   for(int i = 0; i < vp.size(); ++i)
   {

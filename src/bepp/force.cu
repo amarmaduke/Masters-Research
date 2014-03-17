@@ -1,4 +1,5 @@
 #include "force.h"
+#include <stdio.h>
 
 __device__
 double atomicAdd(double * const address, double val)
@@ -24,7 +25,8 @@ void position(int& j, int& i, const int ptr, const parameter& p)
 __global__
 void compute_other( double* const out_x,
                     double* const out_y,
-                    double* const out_s,
+                    double* const out_sx,
+										double* const out_sy,
                     const double* const in_x,
                     const double* const in_y,
                     const double* const in_s,
@@ -32,6 +34,7 @@ void compute_other( double* const out_x,
 {
   int index = blockIdx.x + threadIdx.x;
   int size = p.n*p.m;
+
   if(index >= size)
     return;
 
@@ -44,7 +47,7 @@ void compute_other( double* const out_x,
   double sigma = p.sigma;
   double* delta = p.delta;
 
-  position(j,i,index,p);
+ 	position(j,i,index,p);
 
   double xp = i == 0 ? delta[j] : in_x[index-1];
   double xpp = i == 0 || i == 1 ? delta[j] : in_x[index-2];
@@ -64,6 +67,8 @@ void compute_other( double* const out_x,
   double l = sqrt((x-xp)*(x-xp) + (y-yp)*(y-yp));
   double ln = sqrt((xn-x)*(xn-x) + (yn-y)*(yn-y));
   double lnn = sqrt((xnn-xn)*(xnn-xn) + (ynn-yn)*(ynn-yn));
+
+	//printf("xpp: %f, xp: %f, x: %f, xn: %f, xnn: %f\n ypp: %f, yp: %f, y: %f, yn: %f, ynn: %f\n lp: %f, l: %f, ln: %f, lnn: %f\n",xpp,xp,x,xn,xnn,ypp,yp,y,yn,ynn,lp,l,ln,lnn);
 
   // Compute Bending Force
 
@@ -170,8 +175,8 @@ void compute_other( double* const out_x,
     double x_ = s_x + k*sub_h;
     double y_ = s_y;
 
-    double xps = x - x_;
-    double yps = y - y_;
+    double xps = x_ - x;
+    double yps = y_ - y;
     double dist = sqrt(xps*xps + yps*yps);
 
     double temp_x = xps/dist;
@@ -185,11 +190,11 @@ void compute_other( double* const out_x,
     double p13 = p8*p4*p1;
     double LJval = -(12*epsilon/sigma)*(p13-p7);
 
-    s_vdW_x = s_vdW_x - LJval*temp_x;
-    s_vdW_y = s_vdW_y - LJval*temp_y;
+    s_vdW_x = s_vdW_x + LJval*temp_x;
+    s_vdW_y = s_vdW_y + LJval*temp_y;
 
-    s_vdW_sx = s_vdW_sx + LJval*temp_x;
-    s_vdW_sy = s_vdW_sy + LJval*temp_y;
+    s_vdW_sx = s_vdW_sx - LJval*temp_x;
+    s_vdW_sy = s_vdW_sy - LJval*temp_y;
   }
 
   // Total Force
@@ -197,10 +202,12 @@ void compute_other( double* const out_x,
   double total_force_x = -(bending_x + extensible_x) + s_vdW_x;
   double total_force_y = -(bending_y + extensible_y + vdW_y) + s_vdW_y;
 
-  atomicAdd(out_x+index,total_force_x);
-  atomicAdd(out_y+index,total_force_y);
-  atomicAdd(out_s,s_vdW_sx);
-  atomicAdd(out_s+1,s_vdW_sy);
+	//printf("b_x: %f, e_x: %f, e_v: %f\nb_y: %f, e_y: %f, e_v: %f, e_vs: %f\n",bending_x,extensible_x,s_vdW_x,bending_y,extensible_y,s_vdW_y,vdW_y);
+
+	out_x[index] = total_force_x;
+	out_y[index] = total_force_y;
+	out_sx[index] = s_vdW_sx;
+	out_sy[index] = s_vdW_sy;
 }
 
 __global__
@@ -208,29 +215,34 @@ void compute_n_body(double* const out_x,
                     double* const out_y,
                     const double* const in_x,
                     const double* const in_y,
+										const int column_block,
                     const parameter p)
 {
-  const int row = blockIdx.y + threadIdx.y;
-  const int col = blockIdx.x + threadIdx.x;
-  const int size = p.n*p.m;
+  const int row = blockDim.x * blockIdx.x + threadIdx.x;
+	const int column = blockDim.x * column_block;
+	const int size = p.n*p.m;
   const double sigma = p.sigma;
   const double epsilon = p.epsilon;
 
   int j, i, j_, i_;
-  position(j,i,row,p);
-  position(j_,i_,col,p);
-
-  if(row >= size or col >= size
-      or (j == j_ and (i_ == i or i_ + 1 == i or i_ - 1 == i)))
-  {
-	}else
-  {
-    double x = in_x[row];
-    double y = in_y[row];
-    double x_ = in_x[col];
-    double y_ = in_y[col];
-
-    double xps = x - x_;
+	double x, x_, y, y_;
+	
+	#pragma unroll
+	for(int k = 0; k < K; ++k)
+	{
+  	position(j,i,row,p);
+  	position(j_,i_,column+k,p);
+		if(row < size and column < size and (j != j_ or (i_ != i and i_ + 1 != i and i_ - 1 != i)))
+    {
+			x = in_x[row];
+			y = in_y[row];
+			x_ = in_x[column+k];
+			y_ = in_y[column+k];
+		}else
+		{
+			return;
+		}
+		double xps = x - x_;
     double yps = y - y_;
     double dist = sqrt(xps*xps + yps*yps);
 
@@ -248,9 +260,21 @@ void compute_n_body(double* const out_x,
     double vdW_x = -LJval*temp_x;
     double vdW_y = -LJval*temp_y;
 
-    atomicAdd(out_x+row,vdW_x);
-    atomicAdd(out_y+row,vdW_y);
+		vdW_x = isnan(vdW_x)? 0 : vdW_x;
+		vdW_y = isnan(vdW_y)? 0 : vdW_y;
+
+		out_x[row] += vdW_x;
+		out_y[row] += vdW_y;
   }
+}
+
+__global__
+void combine(double* const out, const double* const in)
+{
+	int index = threadIdx.x;
+	printf("index: %d\n",index);
+	printf("index: %d, out: %f, in: %f\n",index,out[index],in[index]);
+	out[index] += in[index];
 }
 
 void
@@ -258,26 +282,62 @@ force_functor::operator() ( const vector_type &x,
                             vector_type &dxdt,
                             const value_type dt)
 {
-  int size = this->state.n * this->state.m;
-  int B = (size+1)/K;
+  int size = this->state.n*this->state.m;
+	int total_size = 2*size + 2;
+	int B = size%K != 0? size/K + 1 : size/K;
   dim3 block_other(B,1,1), thread_other(K,1,1);
-  dim3 block_nbody(B,B,1), thread_nbody(K,K,1);
+  dim3 block_nbody(B,1,1), thread_nbody(K,1,1);
 
-  const double* in = x.data().get();
-  double* out = dxdt.data().get();
+  const value_type* in = x.data().get();
+  value_type* out = dxdt.data().get();
 
-  cudaStream_t s1, s2;
+  cudaStream_t s1, *s2;
+	s2 = (cudaStream_t*) malloc(B * sizeof(cudaStream_t));
   cudaStreamCreate(&s1);
-  cudaStreamCreate(&s2);
+	cudaEvent_t e1, *e2;
+	e2 = (cudaEvent_t*) malloc(B * sizeof(cudaEvent_t));
+	cudaEventCreate(&e1);
+	for(int i = 0; i < B; ++i)
+  {
+		cudaStreamCreate(&s2[i]);
+		cudaEventCreate(&e2[i]);
+	}
 
-  compute_other<<<block_other,thread_other,0,s1>>>
-                (out,out+size,out+2*size,in,in+size,in+2*size,this->state);
-  compute_n_body<<<block_nbody,thread_nbody,0,s2>>>
-                (out,out+size,in,in+size,this->state);
+  value_type* nbody, *substrate;
+	cudaMalloc(&nbody,2*size*sizeof(value_type));
+	cudaMalloc(&substrate,2*size*sizeof(value_type));
+	cudaMemset(nbody,0,2*size*sizeof(value_type));
 
-  dxdt[2*size] += this->state.mu;
-  dxdt[2*size+1] -= this->state.lambda;
+	compute_other<<<block_other,thread_other,0,s1>>>
+                (out,out+size,substrate,substrate+size,in,in+size,in+2*size,this->state);
+	cudaEventRecord(e1,s1);
+  for(int i = 1; i <= B; ++i)
+	{
+		cudaEventSynchronize(e2[i-1]);
+		//compute_n_body<<<block_nbody,thread_nbody,0,s2[i-1]>>>
+    //            	(nbody,nbody+i*K,in,in+i*K,B-1,this->state);
+		cudaEventRecord(e2[i-1],s2[i-1]);
+	}
+	
+	cudaEventSynchronize(e1);
 
-  cudaStreamDestroy(s1);
-  cudaStreamDestroy(s2);
+	double sub_x = thrust::reduce(thrust::device,substrate,substrate+size);
+	double sub_y = thrust::reduce(thrust::device,substrate+size,substrate+2*size);
+	
+	cudaDeviceSynchronize();
+
+	thrust::transform(thrust::device,out,out+2*size,nbody,out,thrust::plus<double>());
+
+  dxdt[2*size] = sub_x + this->state.mu;
+  dxdt[2*size+1] = sub_y - this->state.lambda;
+  
+	cudaStreamDestroy(s1);
+ 	cudaEventDestroy(e1);
+	for(int i = 0; i < B; ++i)
+	{
+		cudaStreamDestroy(s2[i]);
+		cudaEventDestroy(e2[i]);
+	}
+	free(s2);
+	free(e2);
 }
