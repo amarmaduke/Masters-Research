@@ -215,52 +215,70 @@ void compute_n_body(double* const out_x,
                     double* const out_y,
                     const double* const in_x,
                     const double* const in_y,
-										const int column_block,
                     const parameter p)
 {
+	__shared__ double pos_x[K];
+	__shared__ double pos_y[K];
   const int row = blockDim.x * blockIdx.x + threadIdx.x;
-	const int column = blockDim.x * column_block;
 	const int size = p.n*p.m;
-  const double sigma = p.sigma;
+	const double sigma = p.sigma;
   const double epsilon = p.epsilon;
 
   int j, i, j_, i_;
 	double x, x_, y, y_;
 	
-	#pragma unroll
-	for(int k = 0; k < K; ++k)
+	if(row < size)
 	{
-  	position(j,i,row,p);
-  	position(j_,i_,column+k,p);
+		x = in_x[row];
+		y = in_y[row];
+	}
+
+	for(int b = 0; b < blockDim.x; ++b)
+	{
+		const int column = blockDim.x * b;
+		if(column+threadIdx.x < size)
+		{
+			pos_x[threadIdx.x] = in_x[column+threadIdx.x];
+			pos_y[threadIdx.x] = in_y[column+threadIdx.x];
+		}
+		__syncthreads();
 		
-		if(row < size and column+k < size and (j != j_ or (i_ != i and i_ + 1 != i and i_ - 1 != i)))
-    {
-			x = in_x[row];
-			y = in_y[row];
-			x_ = in_x[column+k];
-			y_ = in_y[column+k];
-			double xps = x - x_;
- 		  double yps = y - y_;
- 	  	double dist = sqrt(xps*xps + yps*yps);
+		#pragma unroll
+		for(int k = 0; k < K; ++k)
+		{
+ 	 		position(j,i,row,p);
+ 	 		position(j_,i_,column+k,p);
+		
+			if(row < size and column+k < size and (j != j_ or (i_ != i and i_ + 1 != i and i_ - 1 != i)))
+    	{
+				x_ = pos_x[k];
+				y_ = pos_y[k];
+				
+				double xps = x - x_;
+ 		  	double yps = y - y_;
+ 	  		double dist = sqrt(xps*xps + yps*yps);
 
-    	double temp_x = xps/dist;
-    	double temp_y = yps/dist;
+    		double temp_x = xps/dist;
+    		double temp_y = yps/dist;
 
-    	double p1 = sigma / dist;
-    	double p2 = p1*p1;
-    	double p4 = p2*p2;
-   		double p7 = p4*p2*p1;
-    	double p8 = p7*p1;
-   	 	double p13 = p8*p4*p1;
-    	double LJval = -(12*epsilon/sigma)*(p13-p7);
+    		double p1 = sigma / dist;
+    		double p2 = p1*p1;
+    		double p4 = p2*p2;
+   			double p7 = p4*p2*p1;
+    		double p8 = p7*p1;
+   	 		double p13 = p8*p4*p1;
+    		double LJval = -(12*epsilon/sigma)*(p13-p7);
 
-    	double vdW_x = -LJval*temp_x;
-    	double vdW_y = -LJval*temp_y;
+    		double vdW_x = -LJval*temp_x;
+    		double vdW_y = -LJval*temp_y;
 
-			//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
-			out_x[row] += vdW_x;
-			out_y[row] += vdW_y;
-  	}
+				//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
+				//assert(x < 100);
+				//assert(not isnan(vdW_x));
+				out_x[row] += vdW_x;
+				out_y[row] += vdW_y;
+  		}
+		}
 	}
 }
 
@@ -285,17 +303,11 @@ force_functor::operator() ( const vector_type &x,
   const value_type* const in = x.data().get();
   value_type* const out = dxdt.data().get();
 
-  cudaStream_t s1, *s2;
-	s2 = (cudaStream_t*) malloc(B * sizeof(cudaStream_t));
-  cudaStreamCreate(&s1);
-	cudaEvent_t e1, *e2;
-	e2 = (cudaEvent_t*) malloc(B * sizeof(cudaEvent_t));
+  cudaStream_t s1, s2;
+	cudaEvent_t e1;
+	cudaStreamCreate(&s1);
+	cudaStreamCreate(&s2);
 	cudaEventCreate(&e1);
-	for(int i = 0; i < B; ++i)
-  {
-		cudaStreamCreate(&s2[i]);
-		cudaEventCreate(&e2[i]);
-	}
 
   value_type* nbody, *substrate;
 	cudaMalloc(&nbody,2*size*sizeof(value_type));
@@ -305,13 +317,21 @@ force_functor::operator() ( const vector_type &x,
 	compute_other<<<block_other,thread_other,0,s1>>>
                 (out,out+size,substrate,substrate+size,in,in+size,in+2*size,this->state);
 	cudaEventRecord(e1,s1);
-  for(int i = 0; i < B; ++i)
-	{
-		cudaEventSynchronize(e2[i]);
-		compute_n_body<<<block_nbody,thread_nbody,0,s2[i]>>>
-                	(nbody,nbody+size,in,in+size,i,this->state);
 
-		cudaEventRecord(e2[i],s2[i]);
+		/*
+		std::cout << "In: " << std::endl;
+		double* t2 = new double[2*size+2];
+		cudaMemcpy(t2,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
+		for(int j = 0; j < 2*size+2; ++j)
+		{
+			std::cout << t2[j] << " ";
+		}
+		std::cout << std::endl << std::endl;
+		*/
+
+	compute_n_body<<<block_nbody,thread_nbody,0,s2>>>
+                (nbody,nbody+size,in,in+size,this->state);
+		
 		
 		/*
 		std::cout << "Ptrs: K*i: " << (K*i) << std::endl;
@@ -338,7 +358,6 @@ force_functor::operator() ( const vector_type &x,
 		free(t1);
 		free(t2);
 		*/
-	}
 	
 	cudaEventSynchronize(e1);
 
@@ -374,14 +393,8 @@ force_functor::operator() ( const vector_type &x,
   dxdt[2*size+1] = sub_y - this->state.lambda;
   
 	cudaStreamDestroy(s1);
- 	cudaEventDestroy(e1);
-	for(int i = 0; i < B; ++i)
-	{
-		cudaStreamDestroy(s2[i]);
-		cudaEventDestroy(e2[i]);
-	}
+ 	cudaStreamDestroy(s2);
+	cudaEventDestroy(e1);
 	cudaFree(nbody);
 	cudaFree(substrate);
-	free(s2);
-	free(e2);
 }
