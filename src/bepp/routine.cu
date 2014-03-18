@@ -66,6 +66,8 @@ void ode_test(json::Object& obj)
 
   observer O(v,vp);
 
+	std::cout << p.abstol << " " << p.reltol << std::endl;
+
   integrate_const(make_controlled(p.abstol, p.reltol, stepper_type()),
                 F, init, 0., 10., 2.5, O);
 

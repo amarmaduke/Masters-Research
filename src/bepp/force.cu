@@ -154,13 +154,19 @@ void compute_other( double* const out_x,
 
   // Compute particle-substrate vdW
 
-  double p1 = sigma / y;
-  double p2 = p1*p1;
-  double p4 = p2*p2;
-  double p5 = p4*p1;
-  double p11 = p5*p5*p1;
+	double p1, p2, p4, p5, p7, p8, p11, p13;
+  p1 = sigma / y;
+  p2 = p1*p1;
+  p4 = p2*p2;
+  p5 = p4*p1;
+  p11 = p5*p5*p1;
 
   double vdW_y = -(PI*epsilon)*(2*p11-4*p5);
+	if(vdW_y > 6)
+	{
+		printf("index: %d, j: %d, i: %d\ny: %f, PI: %f, epsilon: %f, sigma: %f, vdW_y: %f\np1: %f, p2: %f, p4: %f, p5: %f, p11: %f\n",index,j,i,y,PI,epsilon,sigma,vdW_y,p1,p2,p4,p5,p11);
+		assert(false);
+	}
 
   // Compute substrate vdW
 
@@ -182,16 +188,16 @@ void compute_other( double* const out_x,
     double temp_x = xps/dist;
     double temp_y = yps/dist;
 
-    double p1 = sigma / dist;
-    double p2 = p1*p1;
-    double p4 = p2*p2;
-    double p7 = p4*p2*p1;
-    double p8 = p7*p1;
-    double p13 = p8*p4*p1;
+    p1 = sigma / dist;
+    p2 = p1*p1;
+    p4 = p2*p2;
+    p7 = p4*p2*p1;
+    p8 = p7*p1;
+    p13 = p8*p4*p1;
     double LJval = -(12*epsilon/sigma)*(p13-p7);
 
-    s_vdW_x = s_vdW_x + LJval*temp_x;
-    s_vdW_y = s_vdW_y + LJval*temp_y;
+    //s_vdW_x = s_vdW_x + LJval*temp_x;
+    //s_vdW_y = s_vdW_y + LJval*temp_y;
 
     s_vdW_sx = s_vdW_sx - LJval*temp_x;
     s_vdW_sy = s_vdW_sy - LJval*temp_y;
@@ -216,12 +222,12 @@ void compute_other( double* const out_x,
     double temp_x = xps/dist;
     double temp_y = yps/dist;
 
-    double p1 = sigma / dist;
-    double p2 = p1*p1;
-    double p4 = p2*p2;
-    double p7 = p4*p2*p1;
-    double p8 = p7*p1;
-    double p13 = p8*p4*p1;
+    p1 = sigma / dist;
+    p2 = p1*p1;
+   	p4 = p2*p2;
+    p7 = p4*p2*p1;
+    p8 = p7*p1;
+    p13 = p8*p4*p1;
     double LJval = -(12*epsilon/sigma)*(p13-p7);
 
     os_vdW_x = os_vdW_x + LJval*temp_x;
@@ -233,7 +239,9 @@ void compute_other( double* const out_x,
   double total_force_x = -(bending_x + extensible_x) + s_vdW_x + os_vdW_x;
   double total_force_y = -(bending_y + extensible_y + vdW_y) + s_vdW_y + os_vdW_y;
 
-	//printf("b_x: %f, e_x: %f, e_v: %f\nb_y: %f, e_y: %f, e_v: %f, e_vs: %f\n",bending_x,extensible_x,s_vdW_x,bending_y,extensible_y,s_vdW_y,vdW_y);
+	printf("index: %d, j: %d, i: %d\nxpp: %f, xp: %f, x: %f, xn: %f, xnn: %f\n ypp: %f, yp: %f, y: %f, yn: %f, ynn: %f\nb_x: %f, e_x: %f, vu_x: %f, vl_x: %f\nb_y: %f, e_y: %f, vp_y: %f, vu_y: %f, vl_y: %f\n",index,j,i,xpp,xp,x,xn,xnn,ypp,yp,y,yn,ynn,bending_x,extensible_x,s_vdW_x,os_vdW_x,bending_y,extensible_y,vdW_y,s_vdW_y,os_vdW_y);
+	assert(not isnan(total_force_x) and not isnan(total_force_y));
+	assert(x < 100 and y < 100);
 
 	out_x[index] = total_force_x;
 	out_y[index] = total_force_y;
@@ -267,10 +275,13 @@ void compute_n_body(double* const out_x,
 	for(int b = 0; b < blockDim.x; ++b)
 	{
 		const int column = blockDim.x * b;
+		__syncthreads();
 		if(column+threadIdx.x < size)
 		{
 			pos_x[threadIdx.x] = in_x[column+threadIdx.x];
 			pos_y[threadIdx.x] = in_y[column+threadIdx.x];
+			//printf("pos_x: %f, pos_y: %f, index: %d\n",pos_x[threadIdx.x],pos_y[threadIdx.x],threadIdx.x);
+			//assert(pos_y[threadIdx.x] < 100);
 		}
 		__syncthreads();
 		
@@ -304,11 +315,11 @@ void compute_n_body(double* const out_x,
     		double vdW_y = -LJval*temp_y;
 
 				//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
-				assert(x < 100);
-				assert(not isnan(vdW_x));
+				//assert(x < 100 and y < 100);
+				//assert(not isnan(vdW_x) and not isnan(vdW_y));
 				out_x[row] += vdW_x;
 				out_y[row] += vdW_y;
-  		}
+			}
 		}
 	}
 }
@@ -344,11 +355,20 @@ force_functor::operator() ( const vector_type &x,
 	cudaMalloc(&substrate,2*size*sizeof(value_type));
 	cudaMemset(nbody,0,2*size*sizeof(value_type));
 
-	compute_other<<<block_other,thread_other,0,s1>>>
+	std::cout << "In: " << std::endl;
+	double* t1 = new double[2*size+2];
+	cudaMemcpy(t1,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
+	for(int i = 0; i < 2*size+2; ++i)
+	{
+		printf("i: %d, %4.11f\n",i,t1[i]);
+	}
+	printf("\n");
+
+	compute_other<<<block_other,thread_other,0>>>
                 (out,out+size,substrate,substrate+size,in,in+size,in+2*size,this->state);
 	cudaEventRecord(e1,s1);
 
-		
+/*
 		std::cout << "In: " << std::endl;
 		double* t2 = new double[2*size+2];
 		cudaMemcpy(t2,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
@@ -357,12 +377,12 @@ force_functor::operator() ( const vector_type &x,
 			std::cout << t2[j] << " ";
 		}
 		std::cout << std::endl << std::endl;
-		
+*/
 
-	compute_n_body<<<block_nbody,thread_nbody,0,s2>>>
-                (nbody,nbody+size,in,in+size,this->state);
+	//compute_n_body<<<block_nbody,thread_nbody,0>>>
+  //              (nbody,nbody+size,in,in+size,this->state);
 		
-		
+	
 		/*
 		std::cout << "Ptrs: K*i: " << (K*i) << std::endl;
 		std::cout << "outptr: " << out_ptr << " inptr: " << in_ptr << std::endl;
@@ -396,31 +416,50 @@ force_functor::operator() ( const vector_type &x,
 	
 	cudaDeviceSynchronize();
 
+	
 	/*
 	std::cout << "Start:" << std::endl;
 	double* t = new double[2*size];
 	cudaMemcpy(t,nbody,sizeof(double)*2*size,cudaMemcpyDeviceToHost);
 	double* t1 = new double[2*size];
 	cudaMemcpy(t1,out,sizeof(double)*2*size,cudaMemcpyDeviceToHost);
+	std::cout << "[";
 	for(int i = 0; i < 2*size; ++i)
 	{
-		std::cout << t[i] << " " << t1[i] << std::endl;
-	}*/
+		std::cout << t1[i] << ",";
+	}
+	std::cout << "]" << std::endl;
+	*/
 
-	combine<<<1,2*size>>>(out,nbody);
+	//combine<<<1,2*size>>>(out,nbody);
 	//thrust::transform(nbody,nbody+2*size,dxdt.begin(),dxdt.begin(),thrust::plus<double>());
 
-/*
-	std::cout << "Next:" << std::endl;
-	double* t2 = new double[2*size];
-	cudaMemcpy(t2,out,sizeof(double)*2*size,cudaMemcpyDeviceToHost);
-	for(int i = 0; i < 2*size; ++i)
-	{
-		std::cout << t2[i] << std::endl;
-	}*/
+  //dxdt[2*size] = sub_x + this->state.mu;
+  //dxdt[2*size+1] = sub_y - this->state.lambda;
 
-  dxdt[2*size] = sub_x + this->state.mu;
-  dxdt[2*size+1] = sub_y - this->state.lambda;
+	/*
+	std::cout << "In: " << std::endl;
+	double* t1 = new double[2*size+2];
+	cudaMemcpy(t1,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
+	for(int i = 0; i < 2*size+2; ++i)
+	{
+		printf("i: %d, %4.11f\n",i,t1[i]);
+	}
+	printf("\n");
+
+	std::cout << "Next:" << std::endl;
+	double* t2 = new double[2*size+2];
+	cudaMemcpy(t2,out,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
+	printf("[");
+	for(int i = 0; i < 2*size+2; ++i)
+	{
+		printf("i: %d, %4.11f\n",i,t2[i]);
+	}
+	printf("]\n");
+	*/
+
+	//assert(false);
+	//assert(not isnan(t2[0]));
   
 	cudaStreamDestroy(s1);
  	cudaStreamDestroy(s2);
