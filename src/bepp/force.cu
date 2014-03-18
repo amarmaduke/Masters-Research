@@ -162,11 +162,6 @@ void compute_other( double* const out_x,
   p11 = p5*p5*p1;
 
   double vdW_y = -(PI*epsilon)*(2*p11-4*p5);
-	if(vdW_y > 6)
-	{
-		printf("index: %d, j: %d, i: %d\ny: %f, PI: %f, epsilon: %f, sigma: %f, vdW_y: %f\np1: %f, p2: %f, p4: %f, p5: %f, p11: %f\n",index,j,i,y,PI,epsilon,sigma,vdW_y,p1,p2,p4,p5,p11);
-		assert(false);
-	}
 
   // Compute substrate vdW
 
@@ -196,8 +191,8 @@ void compute_other( double* const out_x,
     p13 = p8*p4*p1;
     double LJval = -(12*epsilon/sigma)*(p13-p7);
 
-    //s_vdW_x = s_vdW_x + LJval*temp_x;
-    //s_vdW_y = s_vdW_y + LJval*temp_y;
+    s_vdW_x = s_vdW_x + LJval*temp_x;
+    s_vdW_y = s_vdW_y + LJval*temp_y;
 
     s_vdW_sx = s_vdW_sx - LJval*temp_x;
     s_vdW_sy = s_vdW_sy - LJval*temp_y;
@@ -239,9 +234,10 @@ void compute_other( double* const out_x,
   double total_force_x = -(bending_x + extensible_x) + s_vdW_x + os_vdW_x;
   double total_force_y = -(bending_y + extensible_y + vdW_y) + s_vdW_y + os_vdW_y;
 
-	printf("index: %d, j: %d, i: %d\nxpp: %f, xp: %f, x: %f, xn: %f, xnn: %f\n ypp: %f, yp: %f, y: %f, yn: %f, ynn: %f\nb_x: %f, e_x: %f, vu_x: %f, vl_x: %f\nb_y: %f, e_y: %f, vp_y: %f, vu_y: %f, vl_y: %f\n",index,j,i,xpp,xp,x,xn,xnn,ypp,yp,y,yn,ynn,bending_x,extensible_x,s_vdW_x,os_vdW_x,bending_y,extensible_y,vdW_y,s_vdW_y,os_vdW_y);
-	assert(not isnan(total_force_x) and not isnan(total_force_y));
-	assert(x < 100 and y < 100);
+	total_force_x = -(bending_x + extensible_x) + s_vdW_x + os_vdW_x;
+	total_force_y = -(bending_y + extensible_y + vdW_y) + s_vdW_y + os_vdW_y;
+
+	//printf("index: %d, j: %d, i: %d\nxpp: %f, xp: %f, x: %f, xn: %f, xnn: %f\n ypp: %f, yp: %f, y: %f, yn: %f, ynn: %f\nb_x: %f, e_x: %f, vu_x: %f, vl_x: %f\nb_y: %f, e_y: %f, vp_y: %f, vu_y: %f, vl_y: %f\n",index,j,i,xpp,xp,x,xn,xnn,ypp,yp,y,yn,ynn,bending_x,extensible_x,s_vdW_x,os_vdW_x,bending_y,extensible_y,vdW_y,s_vdW_y,os_vdW_y);
 
 	out_x[index] = total_force_x;
 	out_y[index] = total_force_y;
@@ -256,26 +252,21 @@ void compute_n_body(double* const out_x,
                     const double* const in_y,
                     const parameter p)
 {
-	__shared__ double pos_x[K];
-	__shared__ double pos_y[K];
-  const int row = blockDim.x * blockIdx.x + threadIdx.x;
-	const int size = p.n*p.m;
-	const double sigma = p.sigma;
-  const double epsilon = p.epsilon;
+	//__shared__ double pos_x[K];
+	//__shared__ double pos_y[K];
+  int row = blockDim.x * blockIdx.x + threadIdx.x;
+	int size = p.n*p.m;
+	double sigma = p.sigma;
+  double epsilon = p.epsilon;
 
   int j, i, j_, i_;
 	double x, x_, y, y_;
-	
-	if(row < size)
-	{
-		x = in_x[row];
-		y = in_y[row];
-	}
 
 	for(int b = 0; b < blockDim.x; ++b)
 	{
-		const int column = blockDim.x * b;
-		__syncthreads();
+		int column = blockDim.x * b;
+		//__syncthreads();
+		/*
 		if(column+threadIdx.x < size)
 		{
 			pos_x[threadIdx.x] = in_x[column+threadIdx.x];
@@ -283,44 +274,48 @@ void compute_n_body(double* const out_x,
 			//printf("pos_x: %f, pos_y: %f, index: %d\n",pos_x[threadIdx.x],pos_y[threadIdx.x],threadIdx.x);
 			//assert(pos_y[threadIdx.x] < 100);
 		}
-		__syncthreads();
+		*/
+		//__syncthreads();
 		
-		#pragma unroll
+		//#pragma unroll
 		for(int k = 0; k < K; ++k)
 		{
  	 		position(j,i,row,p);
  	 		position(j_,i_,column+k,p);
 		
-			if(row < size and column+k < size and (j != j_ or (i_ != i and i_ + 1 != i and i_ - 1 != i)))
-    	{
-				x_ = pos_x[k];
-				y_ = pos_y[k];
-				
-				double xps = x - x_;
- 		  	double yps = y - y_;
- 	  		double dist = sqrt(xps*xps + yps*yps);
+			x = row < size? in_x[row] : NAN;
+			y = row < size? in_y[row] : NAN;
+			x_ = column+k < size? in_x[column+k] : NAN;
+			y_ = column+k < size? in_y[column+k] : NAN;
+			
+			double xps = x - x_;
+ 	  	double yps = y - y_;
+ 	  	double dist = sqrt(xps*xps + yps*yps);
 
-    		double temp_x = xps/dist;
-    		double temp_y = yps/dist;
+    	double temp_x = xps/dist;
+    	double temp_y = yps/dist;
 
-    		double p1 = sigma / dist;
-    		double p2 = p1*p1;
-    		double p4 = p2*p2;
-   			double p7 = p4*p2*p1;
-    		double p8 = p7*p1;
-   	 		double p13 = p8*p4*p1;
-    		double LJval = -(12*epsilon/sigma)*(p13-p7);
+    	double p1 = sigma / dist;
+    	double p2 = p1*p1;
+    	double p4 = p2*p2;
+   		double p7 = p4*p2*p1;
+    	double p8 = p7*p1;
+   		double p13 = p8*p4*p1;
+    	double LJval = -(12*epsilon/sigma)*(p13-p7);
 
-    		double vdW_x = -LJval*temp_x;
-    		double vdW_y = -LJval*temp_y;
+    	double vdW_x = -LJval*temp_x;
+    	double vdW_y = -LJval*temp_y;
 
-				//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
-				//assert(x < 100 and y < 100);
-				//assert(not isnan(vdW_x) and not isnan(vdW_y));
-				out_x[row] += vdW_x;
-				out_y[row] += vdW_y;
-			}
+			vdW_x = (j == j_ and (i == i_ or i+1 == i_ or i-1 == i_))? 0 : vdW_x;
+			vdW_y = (j == j_ and (i == i_ or i+1 == i_ or i-1 == i_))? 0 : vdW_y;
+
+			//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
+			//assert(x < 100 and y < 100);
+			//assert(not isnan(vdW_x) and not isnan(vdW_y));
+			out_x[row] += vdW_x;
+			out_y[row] += vdW_y;
 		}
+		//__syncthreads();
 	}
 }
 
@@ -339,7 +334,7 @@ force_functor::operator() ( const vector_type &x,
   int size = this->state.n*this->state.m;
 	int B = size%K != 0? size/K + 1 : size/K;
   dim3 block_other(B,1,1), thread_other(K,1,1);
-  dim3 block_nbody(B,1,1), thread_nbody(K,1,1);
+  dim3 block_nbody(1,1,1), thread_nbody(size,1,1);
 
   const value_type* const in = x.data().get();
   value_type* const out = dxdt.data().get();
@@ -355,6 +350,7 @@ force_functor::operator() ( const vector_type &x,
 	cudaMalloc(&substrate,2*size*sizeof(value_type));
 	cudaMemset(nbody,0,2*size*sizeof(value_type));
 
+	/*
 	std::cout << "In: " << std::endl;
 	double* t1 = new double[2*size+2];
 	cudaMemcpy(t1,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
@@ -363,8 +359,9 @@ force_functor::operator() ( const vector_type &x,
 		printf("i: %d, %4.11f\n",i,t1[i]);
 	}
 	printf("\n");
+	*/
 
-	compute_other<<<block_other,thread_other,0>>>
+	compute_other<<<block_other,thread_other,0,s1>>>
                 (out,out+size,substrate,substrate+size,in,in+size,in+2*size,this->state);
 	cudaEventRecord(e1,s1);
 
@@ -379,9 +376,11 @@ force_functor::operator() ( const vector_type &x,
 		std::cout << std::endl << std::endl;
 */
 
-	//compute_n_body<<<block_nbody,thread_nbody,0>>>
+	//compute_n_body<<<block_nbody,thread_nbody,0,s1>>>
   //              (nbody,nbody+size,in,in+size,this->state);
-		
+	
+	compute_n_body<<<block_nbody,thread_nbody,0,s1>>>
+								(out,out+size,in,in+size,this->state);
 	
 		/*
 		std::cout << "Ptrs: K*i: " << (K*i) << std::endl;
@@ -431,32 +430,35 @@ force_functor::operator() ( const vector_type &x,
 	std::cout << "]" << std::endl;
 	*/
 
-	//combine<<<1,2*size>>>(out,nbody);
+	//combine<<<1,2*size,0,s1>>>(out,nbody);
 	//thrust::transform(nbody,nbody+2*size,dxdt.begin(),dxdt.begin(),thrust::plus<double>());
 
-  //dxdt[2*size] = sub_x + this->state.mu;
-  //dxdt[2*size+1] = sub_y - this->state.lambda;
+	cudaDeviceSynchronize();
 
-	/*
+  dxdt[2*size] = sub_x + this->state.mu;
+  dxdt[2*size+1] = sub_y - this->state.lambda;
+
+/*
 	std::cout << "In: " << std::endl;
 	double* t1 = new double[2*size+2];
 	cudaMemcpy(t1,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
 	for(int i = 0; i < 2*size+2; ++i)
 	{
 		printf("i: %d, %4.11f\n",i,t1[i]);
+		assert(not isnan(t1[i]));
 	}
 	printf("\n");
 
-	std::cout << "Next:" << std::endl;
+	std::cout << "Force:" << std::endl;
 	double* t2 = new double[2*size+2];
 	cudaMemcpy(t2,out,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
-	printf("[");
 	for(int i = 0; i < 2*size+2; ++i)
 	{
 		printf("i: %d, %4.11f\n",i,t2[i]);
+		assert(not isnan(t1[i]));
 	}
-	printf("]\n");
-	*/
+	printf("\n");
+*/
 
 	//assert(false);
 	//assert(not isnan(t2[0]));
