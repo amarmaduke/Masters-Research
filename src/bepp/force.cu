@@ -168,7 +168,7 @@ void compute_other( double* const out_x,
   double s_y = in_s[1];
   double s_vdW_sx = 0, s_vdW_sy = 0, s_vdW_x = 0, s_vdW_y = 0;
   int sub_count = p.sub_count;
-  int sub_h = p.sub_h;
+  double sub_h = p.sub_h;
 
   for(int k = 0; k < sub_count; ++k)
   {
@@ -197,10 +197,41 @@ void compute_other( double* const out_x,
     s_vdW_sy = s_vdW_sy - LJval*temp_y;
   }
 
+	// Lower substrate vdW
+
+  double os_x = p.osub;
+  double os_vdW_x = 0, os_vdW_y = 0;
+  int osub_count = p.osub_count;
+  double osub_h = p.osub_h;
+
+  for(int k = 0; k < osub_count; ++k)
+  {
+    double x_ = os_x + k*osub_h;
+    double y_ = 0;
+
+    double xps = x_ - x;
+    double yps = y_ - y;
+    double dist = sqrt(xps*xps + yps*yps);
+
+    double temp_x = xps/dist;
+    double temp_y = yps/dist;
+
+    double p1 = sigma / dist;
+    double p2 = p1*p1;
+    double p4 = p2*p2;
+    double p7 = p4*p2*p1;
+    double p8 = p7*p1;
+    double p13 = p8*p4*p1;
+    double LJval = -(12*epsilon/sigma)*(p13-p7);
+
+    os_vdW_x = os_vdW_x + LJval*temp_x;
+    os_vdW_y = os_vdW_y + LJval*temp_y;
+  }
+
   // Total Force
 
-  double total_force_x = -(bending_x + extensible_x) + s_vdW_x;
-  double total_force_y = -(bending_y + extensible_y + vdW_y) + s_vdW_y;
+  double total_force_x = -(bending_x + extensible_x) + s_vdW_x + os_vdW_x;
+  double total_force_y = -(bending_y + extensible_y + vdW_y) + s_vdW_y + os_vdW_y;
 
 	//printf("b_x: %f, e_x: %f, e_v: %f\nb_y: %f, e_y: %f, e_v: %f, e_vs: %f\n",bending_x,extensible_x,s_vdW_x,bending_y,extensible_y,s_vdW_y,vdW_y);
 
@@ -273,8 +304,8 @@ void compute_n_body(double* const out_x,
     		double vdW_y = -LJval*temp_y;
 
 				//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
-				//assert(x < 100);
-				//assert(not isnan(vdW_x));
+				assert(x < 100);
+				assert(not isnan(vdW_x));
 				out_x[row] += vdW_x;
 				out_y[row] += vdW_y;
   		}
@@ -295,7 +326,6 @@ force_functor::operator() ( const vector_type &x,
                             const value_type dt)
 {
   int size = this->state.n*this->state.m;
-	int total_size = 2*size + 2;
 	int B = size%K != 0? size/K + 1 : size/K;
   dim3 block_other(B,1,1), thread_other(K,1,1);
   dim3 block_nbody(B,1,1), thread_nbody(K,1,1);
@@ -318,7 +348,7 @@ force_functor::operator() ( const vector_type &x,
                 (out,out+size,substrate,substrate+size,in,in+size,in+2*size,this->state);
 	cudaEventRecord(e1,s1);
 
-		/*
+		
 		std::cout << "In: " << std::endl;
 		double* t2 = new double[2*size+2];
 		cudaMemcpy(t2,in,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
@@ -327,7 +357,7 @@ force_functor::operator() ( const vector_type &x,
 			std::cout << t2[j] << " ";
 		}
 		std::cout << std::endl << std::endl;
-		*/
+		
 
 	compute_n_body<<<block_nbody,thread_nbody,0,s2>>>
                 (nbody,nbody+size,in,in+size,this->state);

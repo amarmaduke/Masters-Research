@@ -49,8 +49,8 @@ void ode_test(json::Object& obj)
       init[index+size] = i+1;
     }
   }
-  init[0+2*size] = -5;
-  init[1+2*size] = 12;
+  init[0+2*size] = p.sub_x;
+  init[1+2*size] = p.sub_y;
   p.delta = d_delta.get();
 
   cudaEvent_t start, stop;
@@ -66,8 +66,8 @@ void ode_test(json::Object& obj)
 
   observer O(v,vp);
 
-  integrate_const(make_controlled(1.0e-11, 1.0e-11, stepper_type()),
-                F, init, 0., 100., 25., O);
+  integrate_const(make_controlled(p.abstol, p.reltol, stepper_type()),
+                F, init, 0., 10., 2.5, O);
 
   for(int i = 0; i < vp.size(); ++i)
   {

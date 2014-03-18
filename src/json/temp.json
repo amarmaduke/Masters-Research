@@ -1,13 +1,24 @@
 {
-	"m":2,
+	"m":1,
 	"n":4,
+
 	"beta":1,
 	"len":1,
 	"gamma":100,
 	"epsilon":1,
-	"lambda":0,
-	"mu":0,
+	"lambda":10,
+	"mu":-5,
 	"sigma":1,
+
+	"sub_x":-5,
+	"sub_y":10,
 	"sub_h":1,
-	"sub_count":30
+	"sub_count":200,
+
+	"osub":1,
+	"osub_h":1,
+	"osub_count":0,
+
+	"reltol":1e-11,
+	"abstol":1e-11
 }
