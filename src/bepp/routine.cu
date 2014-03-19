@@ -63,13 +63,18 @@ void ode_test(json::Object& obj)
   force_functor F(p);
   std::vector< value_type > v;
   std::vector< value_type* > vp;
+	std::vector< value_type > times;
+	times.push_back(0);
+	times.push_back(9);
+	times.push_back(10);
+
 
   observer O(v,vp);
 
 	std::cout << p.abstol << " " << p.reltol << std::endl;
 
-  integrate_const(make_controlled(p.abstol, p.reltol, stepper_type()),
-                F, init, 0., 10., 2.5, O);
+  integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
+                F, init, times.begin(), times.end(), .01, O);
 
   for(int i = 0; i < vp.size(); ++i)
   {

@@ -245,6 +245,76 @@ void compute_other( double* const out_x,
 	out_sy[index] = s_vdW_sy;
 }
 
+__device__ 
+double2 lennard_jones(double2 v, double2 v_, 
+											int2 idx, int2 idx_, double2 acc, 
+											double sigma, double epsilon)
+{
+	double xps = v.x - v_.x;
+	double yps = v.y - v_.y;
+	double dist = sqrt(xps*xps + yps*yps);
+
+	double temp_x = xps/dist;
+	double temp_y = yps/dist;
+
+	double p1 = sigma / dist;
+	double p2 = p1*p1;
+	double p4 = p2*p2;
+	double p7 = p4*p2*p1;
+	double p8 = p7*p1;
+	double p13 = p8*p4*p1;
+	double LJval = -(12*epsilon/sigma)*(p13-p7);
+
+	int swtch = (abs(idx.y - idx_.y) - 1)*(idx.y - idx_.y);
+
+	acc.x += idx.x == idx_.x and swtch == 0? 0 : -LJval*temp_x;
+	acc.y += idx.x == idx_.x and swtch == 0? 0 : -LJval*temp_y;
+
+	//printf("block: %d, thread: %d, j: %d, j_: %d, i: %d, i_: %d\nx: %f, y: %f, x_: %f, y_: %f\ndist: %f, acc.x: %f, acc.y: %f\n",blockIdx.x,threadIdx.x,idx.x,idx_.x,idx.y,idx_.y,v.x,v.y,v_.x,v_.y,dist,acc.x,acc.y);
+	//assert(not isnan(acc.x) and not isnan(acc.y));
+
+	return acc;
+}
+
+__device__ 
+double2 tile_calculation(	double2 v, int index, int index_,
+													double2 acc, parameter& p)
+{
+	int i;
+	extern __shared__ double2 pos[];
+	#pragma unroll 4
+	for(i = 0; i < blockDim.x; ++i)
+	{
+		int2 idx, idx_;
+		position(idx.x,idx.y,index,p);
+		position(idx_.x,idx_.y,index_+i,p);
+		acc = lennard_jones(v,pos[i],idx,idx_,acc,p.sigma,p.epsilon);
+	}
+	return acc;
+}
+
+__global__
+void compute_n_body2(double* const out, const double* const in, parameter p)
+{
+	extern __shared__ double2 pos[];
+	int i, tile, index = blockIdx.x * blockDim.x + threadIdx.x;
+	int size = p.n * p.m;
+	double2 acc = {0.0, 0.0};
+	double2 v = {in[index], in[index+size]};
+
+	for(i = 0, tile = 0; i < size; i += K, ++tile)
+	{
+		int idx = tile * blockDim.x + threadIdx.x;
+		double2 f = {in[idx], in[idx+size]};
+		pos[threadIdx.x] = f;
+		__syncthreads();
+		acc = tile_calculation(v,index,tile*blockDim.x,acc,p);
+		__syncthreads();
+	}
+	out[index] = acc.x;
+	out[index+size] = acc.y;
+}
+
 __global__
 void compute_n_body(double* const out_x,
                     double* const out_y,
@@ -262,7 +332,7 @@ void compute_n_body(double* const out_x,
   int j, i, j_, i_;
 	double x, x_, y, y_;
 
-	for(int b = 0; b < blockDim.x; ++b)
+	for(int b = 0; b < gridDim.x; ++b)
 	{
 		int column = blockDim.x * b;
 		//__syncthreads();
@@ -278,15 +348,17 @@ void compute_n_body(double* const out_x,
 		//__syncthreads();
 		
 		//#pragma unroll
-		for(int k = 0; k < K; ++k)
+		for(int k = 0; k < blockDim.x; ++k)
 		{
  	 		position(j,i,row,p);
  	 		position(j_,i_,column+k,p);
 		
-			x = row < size? in_x[row] : NAN;
-			y = row < size? in_y[row] : NAN;
-			x_ = column+k < size? in_x[column+k] : NAN;
-			y_ = column+k < size? in_y[column+k] : NAN;
+			if(row < size and column+k < size)
+			{
+			x = in_x[row];
+			y = in_y[row];
+			x_ = in_x[column+k];
+			y_ = in_y[column+k];
 			
 			double xps = x - x_;
  	  	double yps = y - y_;
@@ -309,13 +381,14 @@ void compute_n_body(double* const out_x,
 			vdW_x = (j == j_ and (i == i_ or i+1 == i_ or i-1 == i_))? 0 : vdW_x;
 			vdW_y = (j == j_ and (i == i_ or i+1 == i_ or i-1 == i_))? 0 : vdW_y;
 
-			//printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
+			printf("x: %f, y: %f, x_: %f, y_: %f\nrow: %d, col: %d\nj: %d, i: %d, j_: %d, i_: %d\nvdW_x: %f, vdW_y: %f\nsize: %d\n\n",x,y,x_,y_,row,column+k,j,i,j_,i_,vdW_x,vdW_y,size);
 			//assert(x < 100 and y < 100);
-			//assert(not isnan(vdW_x) and not isnan(vdW_y));
+			assert(not isnan(vdW_x) and not isnan(vdW_y));
 			out_x[row] += vdW_x;
 			out_y[row] += vdW_y;
+			}
 		}
-		//__syncthreads();
+		__syncthreads();
 	}
 }
 
@@ -334,21 +407,22 @@ force_functor::operator() ( const vector_type &x,
   int size = this->state.n*this->state.m;
 	int B = size%K != 0? size/K + 1 : size/K;
   dim3 block_other(B,1,1), thread_other(K,1,1);
-  dim3 block_nbody(1,1,1), thread_nbody(size,1,1);
+  dim3 block_nbody(B,1,1), thread_nbody(K,1,1);
 
   const value_type* const in = x.data().get();
   value_type* const out = dxdt.data().get();
 
   cudaStream_t s1, s2;
-	cudaEvent_t e1;
+	cudaEvent_t e1, e2;
 	cudaStreamCreate(&s1);
 	cudaStreamCreate(&s2);
 	cudaEventCreate(&e1);
+	cudaEventCreate(&e2);
 
-  value_type* nbody, *substrate;
-	cudaMalloc(&nbody,2*size*sizeof(value_type));
-	cudaMalloc(&substrate,2*size*sizeof(value_type));
-	cudaMemset(nbody,0,2*size*sizeof(value_type));
+  thrust::device_ptr<value_type> nbody, substrate;
+	nbody = thrust::device_malloc<value_type>(2*size);
+	substrate = thrust::device_malloc<value_type>(2*size);
+	cudaMemset(nbody.get(),0,2*size*sizeof(value_type));
 
 	/*
 	std::cout << "In: " << std::endl;
@@ -361,9 +435,9 @@ force_functor::operator() ( const vector_type &x,
 	printf("\n");
 	*/
 
-	compute_other<<<block_other,thread_other,0,s1>>>
-                (out,out+size,substrate,substrate+size,in,in+size,in+2*size,this->state);
-	cudaEventRecord(e1,s1);
+	compute_other<<<block_other,thread_other,0>>>
+                (out,out+size,substrate.get(),substrate.get()+size,in,in+size,in+2*size,this->state);
+	//cudaEventRecord(e1,s1);
 
 /*
 		std::cout << "In: " << std::endl;
@@ -379,9 +453,10 @@ force_functor::operator() ( const vector_type &x,
 	//compute_n_body<<<block_nbody,thread_nbody,0,s1>>>
   //              (nbody,nbody+size,in,in+size,this->state);
 	
-	compute_n_body<<<block_nbody,thread_nbody,0,s1>>>
-								(out,out+size,in,in+size,this->state);
-	
+	//cudaDeviceSynchronize();
+	compute_n_body2<<<block_nbody,thread_nbody,K*sizeof(double2)>>>
+									(nbody.get(),in,this->state);
+	//cudaEventRecord(e2,s2);
 		/*
 		std::cout << "Ptrs: K*i: " << (K*i) << std::endl;
 		std::cout << "outptr: " << out_ptr << " inptr: " << in_ptr << std::endl;
@@ -408,14 +483,28 @@ force_functor::operator() ( const vector_type &x,
 		free(t2);
 		*/
 	
-	cudaEventSynchronize(e1);
+	//cudaDeviceSynchronize();
+	//cudaEventSynchronize(e1);
 
-	double sub_x = thrust::reduce(thrust::device,substrate,substrate+size);
-	double sub_y = thrust::reduce(thrust::device,substrate+size,substrate+2*size);
+	double sub_x = thrust::reduce(substrate,substrate+size);
+	double sub_y = thrust::reduce(substrate+size,substrate+2*size);
 	
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 
-	
+	/*
+	double* t1 = new double[2*size];
+	double* t2 = new double[2*size];
+	double* t = new double[2*size+2];
+	cudaMemcpy(t1,nbody.get(),sizeof(double)*2*size,cudaMemcpyDeviceToHost);
+	cudaMemcpy(t2,substrate.get(),sizeof(double)*2*size,cudaMemcpyDeviceToHost);
+	cudaMemcpy(t,out,sizeof(double)*(2*size+2),cudaMemcpyDeviceToHost);
+	for(int i = 0; i < 2*size; ++i)
+	{
+		printf("i: %d, nbody: %f, sub: %f, out: %f\n",i,t1[i],t2[i],t[i]);
+		assert(not isnan(t1[i]) and not isnan(t2[i]) and not isnan(t[i]));
+	}
+	*/
+
 	/*
 	std::cout << "Start:" << std::endl;
 	double* t = new double[2*size];
@@ -430,10 +519,13 @@ force_functor::operator() ( const vector_type &x,
 	std::cout << "]" << std::endl;
 	*/
 
-	//combine<<<1,2*size,0,s1>>>(out,nbody);
-	//thrust::transform(nbody,nbody+2*size,dxdt.begin(),dxdt.begin(),thrust::plus<double>());
+	//cudaEventSynchronize(e2);
+	//cudaEventSynchronize(e1);
 
-	cudaDeviceSynchronize();
+	//combine<<<1,2*size>>>(out,nbody);
+	thrust::transform(nbody,nbody+2*size,dxdt.data(),dxdt.data(),thrust::plus<double>());
+
+	//cudaDeviceSynchronize();
 
   dxdt[2*size] = sub_x + this->state.mu;
   dxdt[2*size+1] = sub_y - this->state.lambda;
@@ -459,13 +551,12 @@ force_functor::operator() ( const vector_type &x,
 	}
 	printf("\n");
 */
-
 	//assert(false);
 	//assert(not isnan(t2[0]));
   
 	cudaStreamDestroy(s1);
  	cudaStreamDestroy(s2);
 	cudaEventDestroy(e1);
-	cudaFree(nbody);
-	cudaFree(substrate);
+	thrust::device_free(nbody);
+	thrust::device_free(substrate);
 }

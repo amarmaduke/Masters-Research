@@ -23,7 +23,7 @@ typedef
 
 // Thread block size for n-body kernel
 // Pick multiple of 32, less than or equal to 1024
-#define K 64
+#define K 32
 
 const double PI = 3.141592653589793238463;
 
