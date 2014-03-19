@@ -14,17 +14,17 @@ using namespace boost::numeric::odeint;
 
 struct observer
 {
-  std::vector<double>& time_point;
-  std::vector<double*>& save;
+  std::vector<value_type>& time_point;
+  std::vector<value_type*>& save;
 
-  observer(std::vector<double>& t,
-      std::vector<double* >& s) : time_point(t), save(s) { }
+  observer(std::vector<value_type>& t,
+      std::vector<value_type* >& s) : time_point(t), save(s) { }
 
   template<typename State >
   void operator() (const State &x, value_type t )
   {
     time_point.push_back(t);
-    double* s = new double[x.size()];
+    value_type* s = new value_type[x.size()];
     thrust::copy(x.begin(),x.end(),s);
     save.push_back(s);
     std::cout << "t: " << t << std::endl;
@@ -63,22 +63,22 @@ void ode_test(json::Object& obj)
   force_functor F(p);
   std::vector< value_type > v;
   std::vector< value_type* > vp;
-	std::vector< value_type > times;
-	times.push_back(0);
-	times.push_back(9);
-	times.push_back(10);
+  std::vector< value_type > times;
+  times.push_back(0);
+  times.push_back(9);
+  times.push_back(10);
 
 
   observer O(v,vp);
 
-	std::cout << p.abstol << " " << p.reltol << std::endl;
+  std::cout << p.abstol << " " << p.reltol << std::endl;
 
   integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
                 F, init, times.begin(), times.end(), .01, O);
 
   for(int i = 0; i < vp.size(); ++i)
   {
-    double* s = vp[i];
+    value_type* s = vp[i];
     std::cout << "t: " << v[i] << std::endl;
     for(int j = 0; j < 2*size+2; ++j)
     {

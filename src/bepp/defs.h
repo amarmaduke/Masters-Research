@@ -11,6 +11,11 @@ typedef
   double
   value_type;
 
+// double2 or float2
+typedef
+  double2
+  value_type2;
+
 // device_vetor, host_vector, std::vector, ...
 typedef
   thrust::device_vector<value_type>
