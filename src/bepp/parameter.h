@@ -18,11 +18,14 @@ struct parameter
   value_type lambda;
   value_type mu;
 
-  value_type sub_h;
+	bool have_delta, have_init;
+	value_type* delta;
+	value_type* init;
+  
+	value_type sub_h;
   value_type sub_x;
   value_type sub_y;
   int sub_count;
-  value_type * delta;
 
   value_type osub_h;
   value_type osub;
@@ -160,21 +163,34 @@ struct parameter
       reltol = temp->val;
     }else
       failed = true;
-/*
-    if(obj.count("delta") > 0)
+    
+		if(obj.count("delta") > 0)
     {
       json::Array* temp = as<json::Array>(obj["delta"]);
-      cudaMalloc(&delta,sizeof(value_type)*temp->size());
-      value_type* temp2 = new value_type[temp->size()];
+      delta = new value_type[temp->size()];
       for(int i = 0; i < temp->size(); ++i)
       {
-        json::Number* temp3 = as<json::Number>((*temp)[i]);
-        temp2[i] = temp3->val;
+        json::Number* temp2 = as<json::Number>((*temp)[i]);
+        delta[i] = temp2->val;
       }
-      cudaMemcpy(delta,temp2,sizeof(value_type)*temp->size(),cudaMemcpyHostToDevice);
-    }
-    */
-    if(failed)
+			have_delta = true;
+    }else
+			have_delta = false;
+
+		if(obj.count("init") > 0)
+		{
+			json::Array* temp = as<json::Array>(obj["init"]);
+			init = new value_type[temp->size()];
+			for(int i = 0; i < temp->size(); ++i)
+			{
+				json::Number* temp2 = as<json::Number>((*temp)[i]);
+				init[i] = temp2->val;
+			}
+			have_init = true;
+		}else
+			have_init = false;
+    
+		if(failed)
     {
       std::cout << "JSON file missing parameters" << std::endl;
       exit(1);

@@ -87,6 +87,8 @@ struct Number : Value
 {
   double val;
 
+	Number() : val(0) { }
+
   Number(std::string s)
   {
     std::stringstream ss(s);
@@ -105,6 +107,8 @@ struct Bool : Value
 {
   bool val;
 
+	Bool() : val(false) { }
+
   Bool(bool b) : val(b) { }
 
   virtual void accept(Value::Visitor& v) const
@@ -117,6 +121,8 @@ struct Bool : Value
 
 struct Null : Value
 {
+	Null() { }
+
   virtual void accept(Value::Visitor& v) const
   {
     v.visit(static_cast<const Null&>(*this));

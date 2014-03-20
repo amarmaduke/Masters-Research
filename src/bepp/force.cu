@@ -239,8 +239,7 @@ value_type2 lennard_jones(value_type2 v, value_type2 v_,
 
   // Add machine epsilon to prevent 0 / 0 introducing a NaN
   // This is implemented strictly to avoid branching.
-  value_type dist = sqrt(xps*xps + yps*yps)
-                    + std::numeric_limits<value_type>::epsilon;
+  value_type dist = sqrt(xps*xps + yps*yps);
 
   value_type temp_x = xps/dist;
   value_type temp_y = yps/dist;
@@ -255,13 +254,18 @@ value_type2 lennard_jones(value_type2 v, value_type2 v_,
 
   // Condense j == j_ and (i == i_ or i == i_ + 1 or i == i_ - 1) via two
   // always positive continuous functions with zeros only at those points.
-  int s1 = ((idx.y - idx_.y)*(idx.y - idx_.y) - 1)*(idx.y - idx_.y)
-            *(idx.y - idx_.y)*(idx.y - idx_.y) - 1)*(idx.y - idx_.y);
-  int s2 = (idx.x - idx_.x)*(idx.x - idx_.x);
+  //int s1 = ((idx.y - idx_.y)*(idx.y - idx_.y) - 1)*(idx.y - idx_.y)
+  //         *((idx.y - idx_.y)*(idx.y - idx_.y) - 1)*(idx.y - idx_.y);
+  //int s2 = (idx.x - idx_.x)*(idx.x - idx_.x);
 
   // Conditional execution instead of branching
-  acc.x += ((s1 + s2 == 0)*0) | ((s1 + s2 != 0)*-LJval*temp_x);
-  acc.y += ((s1 + s2 == 0)*0) | ((s1 + s2 != 0)*-LJval*temp_y)
+	//int swtch = (s1 + s2 == 0);
+  //int swtch = (abs(idx.y - idx.y) - 1)*(idx.y - idx_.y);
+	bool swtch = idx.x == idx_.x
+					and (idx.y == idx_.y or idx.y == idx_.y + 1 or idx.y == idx_.y - 1);
+	
+	acc.x += swtch? 0 : -LJval*temp_x;
+  acc.y += swtch? 0 : -LJval*temp_y*swtch;
 
   return acc;
 }
@@ -330,34 +334,25 @@ force_functor::operator() ( const vector_type &x,
   thrust::device_ptr<value_type> nbody, substrate;
   nbody = thrust::device_malloc<value_type>(2*size);
   substrate = thrust::device_malloc<value_type>(2*size);
-  //cudaMemset(nbody.get(),0,2*size*sizeof(value_type));
 
-  compute_other<<<block_other,thread_other,0>>>
+  compute_other<<<block_other,thread_other,0,s1>>>
                 ( out,out+size,
                   substrate.get(),substrate.get()+size,
                   in,in+size,in+2*size,
                   this->state);
-  //cudaEventRecord(e1,s1);
+  cudaEventRecord(e1,s1);
 
-  //cudaDeviceSynchronize();
-  compute_n_body<<<block_nbody,thread_nbody,K*sizeof(value_type2)>>>
+  compute_n_body<<<block_nbody,thread_nbody,K*sizeof(value_type2),s2>>>
                   (nbody.get(),in,this->state);
 
-  //cudaDeviceSynchronize();
-  //cudaEventSynchronize(e1);
+  cudaEventSynchronize(e1);
 
   value_type sub_x = thrust::reduce(substrate,substrate+size);
   value_type sub_y = thrust::reduce(substrate+size,substrate+2*size);
 
-  //cudaDeviceSynchronize();
-
-  //cudaEventSynchronize(e2);
-  //cudaEventSynchronize(e1);
-
+  cudaDeviceSynchronize();
 
   thrust::transform(nbody,nbody+2*size,dxdt.data(),dxdt.data(),thrust::plus<value_type>());
-
-  //cudaDeviceSynchronize();
 
   dxdt[2*size] = sub_x + this->state.mu;
   dxdt[2*size+1] = sub_y - this->state.lambda;
