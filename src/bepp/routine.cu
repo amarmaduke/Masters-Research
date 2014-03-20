@@ -91,8 +91,12 @@ void ode_test(json::Object& obj)
 	force_functor F(p);
   observer O(v,vp);
 
-  integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
-                F, init, times.begin(), times.end(), .01, O);
+	value_type dt = .1;
+  value_type t0 = 0;
+	//integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
+  //              F, init, times.begin(), times.end(), dt, O);
+	integrate_n_steps(make_controlled(p.abstol, p.reltol, stepper_type()),
+								F, init, t0, dt, 10000, O);
 
   cudaEventRecord(stop,0);
   cudaEventSynchronize(stop);
@@ -116,8 +120,12 @@ void ode_test(json::Object& obj)
 		obj[temp2] = temp;
   }
 
+	std::cout << "time: " << timer << " ms " << (timer/1000) << " s" << std::endl;
+
 	std::ofstream File("output.json");
 	json::print(File,obj);
+	std::ofstream File2("/home/marmaduke/output.json");
+	json::print(File2,obj);
 }
 
 int main()

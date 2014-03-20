@@ -1,6 +1,6 @@
 {
 	"m":1,
-	"n":32,
+	"n":96,
 
 	"beta":1,
 	"len":1,
@@ -21,6 +21,6 @@
 	"osub_h":1,
 	"osub_count":0,
 
-	"reltol":1e-11,
-	"abstol":1e-11
+	"reltol":1e-9,
+	"abstol":1e-9
 }

@@ -33,7 +33,6 @@ typedef
 #define K 32
 
 const double PI = 3.141592653589793238463;
-const double eps = DBL_EPSILON;
 
 // Utilities
 template<typename T, typename U>
