@@ -96,7 +96,7 @@ void ode_test(json::Object& obj)
 	//integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
   //              F, init, times.begin(), times.end(), dt, O);
 	integrate_n_steps(make_controlled(p.abstol, p.reltol, stepper_type()),
-								F, init, t0, dt, 10000, O);
+								F, init, t0, dt, 2000, O);
 
   cudaEventRecord(stop,0);
   cudaEventSynchronize(stop);
