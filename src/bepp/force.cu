@@ -265,7 +265,7 @@ value_type2 lennard_jones(value_type2 v, value_type2 v_,
 					and (idx.y == idx_.y or idx.y == idx_.y + 1 or idx.y == idx_.y - 1);
 	
 	acc.x += swtch? 0 : -LJval*temp_x;
-  acc.y += swtch? 0 : -LJval*temp_y*swtch;
+  acc.y += swtch? 0 : -LJval*temp_y;
 
   return acc;
 }

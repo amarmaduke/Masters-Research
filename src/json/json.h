@@ -95,6 +95,8 @@ struct Number : Value
     ss >> val;
   }
 
+	Number(double d) : val(d) { }
+
   virtual void accept(Value::Visitor& v) const
   {
     v.visit(static_cast<const Number&>(*this));

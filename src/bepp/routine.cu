@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include <thrust/device_vector.h>
+#include <thrust/inner_product.h>
 #include <boost/numeric/odeint.hpp>
 #include <boost/numeric/odeint/external/thrust/thrust.hpp>
 
@@ -13,6 +14,17 @@
 #include "../json/json.h"
 
 using namespace boost::numeric::odeint;
+
+value_type norm(vector_type& a, vector_type& b)
+{
+	thrust::plus<value_type> add;
+	thrust::minus<value_type> sub;
+	thrust::multiplies<value_type> mul;
+	thrust::transform(a.begin(),a.end(),b.begin(),b.begin(),sub);
+	thrust::transform(b.begin(),b.end(),b.begin(),b.begin(),mul);
+	value_type result = thrust::reduce(b.begin(),b.end(),0.0,add);
+	return sqrt(result);
+}
 
 struct observer
 {
@@ -35,9 +47,41 @@ struct observer
 
 struct pp_observer
 {
-  vector_type<value_type>& prev;
-  vector_type
+  vector_type& prev;
+  vector_type& curr;
+	json::Object& obj;
+	bool& swtch;
+	int& count;
 
+	pp_observer(vector_type& p, vector_type& c, json::Object& o, bool& s, int& co) 
+		: prev(p), curr(c), obj(o), swtch(s), count(co) { }
+
+	template<typename State >
+	void operator() (const State&x, value_type t)
+	{
+		if(swtch)
+		{
+			thrust::copy(x.begin(),x.end(),prev.begin());
+			swtch = !swtch;
+		}else
+		{
+			thrust::copy(x.begin(),x.end(),curr.begin());
+			swtch = !swtch;
+			if(count != -1)
+			{
+				json::Array* a = new json::Array();
+				for(int i = 0; i < curr.size(); ++i)
+				{
+					double x = curr[i];
+					a->push_back(new json::Number(x));
+				}
+				std::stringstream ss;
+				ss << "tq" << count;
+				obj[ss.str()] = a;
+				++count;
+			}
+		}
+	}
 };
 
 void pulloff_profile(json::Object& obj)
@@ -89,7 +133,15 @@ void pulloff_profile(json::Object& obj)
   cudaEventRecord(start,0);
 
   std::vector<value_type> times;
-  times.push_back(9); times.push_back(10);
+  vector_type prev(2*size+2);
+	vector_type curr(2*size+2);
+	times.push_back(9); times.push_back(10);
+
+	bool swtch = false;
+	int obs_count = -1;
+	force_functor F(p);
+	pp_observer O(prev,curr,obj,swtch,obs_count);
+	vector_type V = vector_type(init);
 
   json::Array* grid = new json::Array();
 
@@ -100,8 +152,8 @@ void pulloff_profile(json::Object& obj)
   double upper_bound = 100;
   bool have_upper = false, have_lower = false;
 
-  double dt = .1, t0 = 0;
-  double theta_begin = 0, theta_end = 45, theta_h = 5;
+  double dt = .1;
+  double theta_begin = 15, theta_end = 45, theta_h = 5;
 
   for(int t = theta_begin; t <= theta_end; t+=theta_h)
   {
@@ -112,56 +164,72 @@ void pulloff_profile(json::Object& obj)
     {
       linear_step = 1;
     }
+		std::cout << "Searching... theta = " << t << std::endl;
 
     while(not found)
     {
       bool done = false;
       int outcome = -1;
-      while(not done)
+			
+      double l = -magnitude*sin(PI*t/180);
+      double m = magnitude*cos(PI*t/180);
+			F.state.lambda = l;
+			F.state.mu = m;
+			while(not done)
       {
-        double l = -magnitude*sin(PI*t/180);
-        double m = magnitude*cos(PI*t/180);
-
         integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
-          F, init, times.begin(), times.end(), dt, O);
+          F, V, times.begin(), times.end(), dt, O);
 
-        double equil = sqrt(thrust::inner_product(init.data(),
-                                            init.data()+2*size,init.data(),0.));
-        double adhesion = sqrt(thrust::inner_product(init.data()+2*size,
-                                  init.data()+2*size+2,init.data()+2*size,0.));
-        double d = sqrt(l*l + m*m);
+				vector_type diff(2*size+2);
+				thrust::minus<value_type> op;
+				thrust::transform(curr.begin(),curr.end(),prev.begin(),diff.begin(),op);
+				value_type equil = sqrt(thrust::inner_product(
+								diff.begin(),diff.begin()+2*size,diff.begin(),0.));
+    		value_type adhesion = sqrt(thrust::inner_product(
+								diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
+    		value_type d = sqrt(l*l + m*m);
+				std::cout << "equil: " << equil << " adhesion: " << adhesion << " d: " << d << std::endl;
 
-        if(abs(adhesion - d) < abstol)
-        {
+        if(abs(adhesion - d) < p.abstol)
+        { // Pulled off
           done = true;
           json::Array* temp = new json::Array();
-          temp.push_back(l); temp.push_back(m); temp.push_back(1);
-          grid.push_back(temp);
+          temp->push_back(new json::Number(t));
+					temp->push_back(new json::Number(l)); 
+					temp->push_back(new json::Number(m)); 
+					temp->push_back(new json::Number(1));
+          grid->push_back(temp);
           outcome = 1;
-        }else if(equil < abstol and adhesion < abstol)
-        {
+					std::cout << "Pulled off. l: " << l << " m: " << m << std::endl;
+        }else if(equil < p.abstol and adhesion < p.abstol)
+        { // Adhered
           done = true;
           json::Array* temp = new json::Array();
-          temp.push_back(l); temp.push_back(m); temp.push_back(0);
-          grid.push_back(temp);
+					temp->push_back(new json::Number(t));
+          temp->push_back(new json::Number(l)); 
+					temp->push_back(new json::Number(m)); 
+					temp->push_back(new json::Number(0));
+          grid->push_back(temp);
           outcome = 0;
+					std::cout << "Adhered. l: " << l << " m: " << m << std::endl;
         }
       }
 
       if(have_upper and have_lower and abs(upper_bound - lower_bound) < .5)
       {
         found = true;
+				V = vector_type(init);
       }
 
       if(not have_lower or not have_upper)
       {
-        if(outcome == 1) //Pulled off
+        if(outcome == 0) // Adhered
         {
           lower_bound = magnitude;
           have_lower = true;
           if(not have_upper)
             magnitude = magnitude + linear_step;
-        }else if(outcome == 0) // Adhered
+        }else if(outcome == 1) // Pulled Off
         {
           upper_bound = magnitude;
           have_upper = true;
@@ -181,14 +249,23 @@ void pulloff_profile(json::Object& obj)
       ++output_i;
     }
   }
-  obj["grid"] = grid;
+
+  cudaEventRecord(stop,0);
+  cudaEventSynchronize(stop);
+  cudaEventElapsedTime(&timer,start,stop);
+  cudaEventDestroy(start);
+  cudaEventDestroy(stop);
+  
+  std::cout << "time: " << timer << " ms " << (timer/1000) << " s" << std::endl;
+
+	obj["grid"] = grid;
   std::ofstream File("pp.json");
   json::print(File,obj);
   std::ofstream File2("/home/marmaduke/pp.json");
   json::print(File2,obj);
 }
 
-void ode_test(json::Object& obj)
+void equillibriate(json::Object& obj)
 {
   parameter p(obj);
   int size = p.m*p.n;
@@ -236,44 +313,58 @@ void ode_test(json::Object& obj)
   cudaEventCreate(&stop);
   cudaEventRecord(start,0);
 
-  std::vector< value_type > v;
-  std::vector< value_type* > vp;
   std::vector< value_type > times;
-  times.push_back(0);
+	vector_type prev(2*size+2);
+	vector_type curr(2*size+2);
+
   times.push_back(9);
-  times.push_back(10);
+	times.push_back(10);
+
+	bool swtch = false;
+	int obs_count = 0;
 
   force_functor F(p);
-  observer O(v,vp);
+  pp_observer O(prev,curr,obj,swtch,obs_count);
 
-  value_type dt = .1;
-  value_type t0 = 0;
-  //integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
-  //              F, init, times.begin(), times.end(), dt, O);
-	integrate_n_steps(make_controlled(p.abstol, p.reltol, stepper_type()),
-								F, init, t0, dt, 2000, O);
-
+  value_type dt = .05;
+	
+	while(true)
+	{
+		integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
+                	F, init, times.begin(), times.end(), dt, O);
+		
+		vector_type diff(2*size+2);
+		thrust::minus<value_type> op;
+		thrust::transform(curr.begin(),curr.end(),prev.begin(),diff.begin(),op);
+		value_type equil = sqrt(thrust::inner_product(
+								diff.begin(),diff.begin()+2*size,diff.begin(),0.));
+    value_type adhesion = sqrt(thrust::inner_product(
+								diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
+    value_type d = sqrt(p.lambda*p.lambda + p.mu*p.mu);
+		std::cout << "equil: " << equil << " adhesion: " << adhesion << " d: " << d << std::endl;
+		if(abs(d - adhesion) < p.abstol or 
+			(equil < p.abstol and adhesion < p.abstol))
+		{	
+			break;
+		}
+	}
   cudaEventRecord(stop,0);
   cudaEventSynchronize(stop);
   cudaEventElapsedTime(&timer,start,stop);
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
 
-  for(int i = 0; i < vp.size(); ++i)
-  {
-    json::Array* temp = new json::Array;
-    value_type* s = vp[i];
-    std::stringstream ss;
-    ss << "t:" << v[i];
-    std::string temp2 = ss.str();
-    for(int j = 0; j < 2*size+2; ++j)
-    {
-      json::Number* num = new json::Number;
-      num->val = s[j];
-      temp->push_back(num);
-    }
-    obj[temp2] = temp;
+  json::Array* temp = new json::Array;
+  std::stringstream ss;
+  ss << "tq" << obs_count;
+  std::string temp2 = ss.str();
+  for(int j = 0; j < 2*size+2; ++j)
+	{
+    json::Number* num = new json::Number;
+    num->val = init[j];
+    temp->push_back(num);
   }
+  obj[temp2] = temp;
 
   std::cout << "time: " << timer << " ms " << (timer/1000) << " s" << std::endl;
 
@@ -286,6 +377,19 @@ void ode_test(json::Object& obj)
 int main()
 {
   json::Object obj = json::parse(std::cin,10);
-  ode_test(obj);
-  return 0;
+  json::Number* num = as<json::Number>(obj["type"]);
+	json::Number* device = as<json::Number>(obj["device"]);
+	int t = num->val;
+	int d = device->val;
+	switch(t)
+	{
+		case 1:
+			std::cout << "Pulloff Profile" << std::endl;
+			pulloff_profile(obj);
+			break;
+		default:
+			std::cout << "Equillibriate" << std::endl;
+			equillibriate(obj);
+	}
+	return 0;
 }

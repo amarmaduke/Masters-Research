@@ -6,20 +6,20 @@
 	"len":1,
 	"gamma":100,
 	"epsilon":1,
-	"lambda":10,
-	"mu":-5,
+	"lambda":25,
+	"mu":-15,
 	"sigma":1,
 
 	"delta":[0],
 
-	"sub_x":-5,
-	"sub_y":110,
+	"sub_x":-40,
+	"sub_y":100,
 	"sub_h":1,
-	"sub_count":200,
+	"sub_count":150,
 
-	"osub":1,
+	"osub":-100,
 	"osub_h":1,
-	"osub_count":0,
+	"osub_count":150,
 
 	"reltol":1e-9,
 	"abstol":1e-9
