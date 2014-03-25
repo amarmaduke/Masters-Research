@@ -75,6 +75,7 @@ struct pp_observer
 
 void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
 {
+	int size = p.m*p.n;
   cudaEvent_t start, stop;
   float timer;
 
@@ -95,15 +96,15 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
 
   json::Array* grid = new json::Array();
 
-  double linear_step = 5;
+  double linear_step = 20;
   int output_i = 1;
-  double magnitude = 10;
+  double magnitude = 40;
   double lower_bound = 0;
   double upper_bound = 100;
   bool have_upper = false, have_lower = false;
 
-  double dt = .1;
-  double theta_begin = 15, theta_end = 45, theta_h = 5;
+  double dt = .01;
+  double theta_begin = 40, theta_end = 45, theta_h = 5;
 
   for(int t = theta_begin; t <= theta_end; t += theta_h)
   {
@@ -139,7 +140,6 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
         value_type adhesion = sqrt(thrust::inner_product(
                 diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
         value_type d = sqrt(l*l + m*m);
-        std::cout << "equil: " << equil << " adhesion: " << adhesion << " d: " << d << std::endl;
 
         if(abs(adhesion - d) < p.abstol)
         { // Pulled off
@@ -165,11 +165,11 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
           std::cout << "Adhered. l: " << l << " m: " << m << std::endl;
         }
       }
+			thrust::copy(init.begin(),init.end(),V.begin());
 
       if(have_upper and have_lower and abs(upper_bound - lower_bound) < .5)
       {
         found = true;
-        V = vector_type(init);
       }
 
       if(not have_lower or not have_upper)
@@ -197,6 +197,8 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
           upper_bound = magnitude;
         magnitude = lower_bound + (upper_bound - lower_bound) / 2;
       }
+
+			std::cout << "h_l " << have_lower << " h_u " << have_upper << " l_b " << lower_bound << " u_b " << upper_bound << std::endl;
       ++output_i;
     }
   }
@@ -218,6 +220,7 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
 
 void equillibriate(parameter& p, json::Object& obj, vector_type& init)
 {
+	int size = p.m*p.n;
   cudaEvent_t start, stop;
   float timer;
 
@@ -293,6 +296,8 @@ int main()
   json::Number* device = as<json::Number>(obj["device"]);
   int t = num->val;
   int d = device->val;
+	
+	cudaSetDevice(d);
 
   parameter p(obj);
   int size = p.m*p.n;
