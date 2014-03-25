@@ -32,6 +32,9 @@ typedef
 // Pick multiple of 32, less than or equal to 1024
 #define K 32
 
+// Number of simulations to compute in parallel for pulloff profile
+#define SIM_COUNT 8
+
 const double PI = 3.141592653589793238463;
 
 // Utilities

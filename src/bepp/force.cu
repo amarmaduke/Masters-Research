@@ -259,12 +259,12 @@ value_type2 lennard_jones(value_type2 v, value_type2 v_,
   //int s2 = (idx.x - idx_.x)*(idx.x - idx_.x);
 
   // Conditional execution instead of branching
-	//int swtch = (s1 + s2 == 0);
+  //int swtch = (s1 + s2 == 0);
   //int swtch = (abs(idx.y - idx.y) - 1)*(idx.y - idx_.y);
-	bool swtch = idx.x == idx_.x
-					and (idx.y == idx_.y or idx.y == idx_.y + 1 or idx.y == idx_.y - 1);
-	
-	acc.x += swtch? 0 : -LJval*temp_x;
+  bool swtch = idx.x == idx_.x
+          and (idx.y == idx_.y or idx.y == idx_.y + 1 or idx.y == idx_.y - 1);
+
+  acc.x += swtch? 0 : -LJval*temp_x;
   acc.y += swtch? 0 : -LJval*temp_y;
 
   return acc;
@@ -360,6 +360,70 @@ force_functor::operator() ( const vector_type &x,
   cudaStreamDestroy(s1);
   cudaStreamDestroy(s2);
   cudaEventDestroy(e1);
+  thrust::device_free(nbody);
+  thrust::device_free(substrate);
+}
+
+void
+force_functor2::operator() ( const vector_type &x,
+                            vector_type &dxdt,
+                            const value_type dt)
+{
+  int size = this->state.n*this->state.m;
+  int B = size%K != 0? size/K + 1 : size/K;
+  dim3 block_other(B,1,1), thread_other(K,1,1);
+  dim3 block_nbody(B,1,1), thread_nbody(K,1,1);
+
+  const value_type* const in = x.data().get();
+  value_type* const out = dxdt.data().get();
+
+  cudaStream_t s[SIM_COUNT];
+  for(int i = 0; i < SIM_COUNT; ++i)
+  {
+    cudaStreamCreate(&s[i]);
+  }
+
+  thrust::device_ptr<value_type> nbody, substrate;
+  nbody = thrust::device_malloc<value_type>(2*size*SIM_COUNT);
+  substrate = thrust::device_malloc<value_type>(2*size*SIM_COUNT);
+
+  for(int i = 0; i < SIM_COUNT; ++i)
+  {
+    compute_other<<<block_other,thread_other,0,s[i]>>>
+                  ( out + i*total_size, out+size + i*total_size,
+                    substrate.get() + i*total_size,
+                    substrate.get()+size + i*total_size,
+                    in + i*total_size, in+size + i*total_size,
+                    in+2*size + i*total_size, this->state);
+
+    cudaStreamSynchronize(s[i]);
+
+    value_type sub_x = thrust::reduce(substrate+i*total_size,
+                                      substrate+size+i*total_size);
+    value_type sub_y = thrust::reduce(substrate+size+i*total_size,
+                                      substrate+2*size+i*total_size);
+
+    compute_n_body<<<block_nbody,thread_nbody,K*sizeof(value_type2),s[i]>>>
+                    (nbody.get() + i*total_size,
+                      in + i * total_size,
+                      this->state);
+
+    cudaStreamSynchronize(s[i]);
+
+    thrust::transform(nbody+i*total_size,
+                      nbody+2*size+i*total_size,
+                      dxdt.data()+i*total_size,
+                      dxdt.data()+i*total_size,
+                      thrust::plus<value_type>());
+
+    dxdt[2*size+i*total_size] = sub_x + this->state.mu;
+    dxdt[2*size+1+i*total_size] = sub_y - this->state.lambda;
+  }
+
+  for(int i = 0; i < SIM_COUNT; ++i)
+  {
+    cudaStreamDestroy(s[i]);
+  }
   thrust::device_free(nbody);
   thrust::device_free(substrate);
 }

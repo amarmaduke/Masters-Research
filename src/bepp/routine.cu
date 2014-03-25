@@ -73,9 +73,206 @@ struct pp_observer
   }
 };
 
+struct pp_observer_p
+{
+  vector_type& prev;
+
+  pp_observer(vector_type& p) : prev(p) { }
+
+  template<typename State >
+  void operator() (const State&x, value_type t)
+  {
+    if(t == 9)
+    {
+      thrust::copy(x.begin(),x.end(),prev.begin());
+    }
+  }
+};
+
+void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
+{
+  int size = p.m*p.n, total_size = 2*size+2;
+  cudaEvent_t start, stop;
+  float timer;
+
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+  cudaEventRecord(start,0);
+
+  std::vector<value_type> times;
+  vector_type prev(SIM_COUNT*total_size);
+  times.push_back(9); times.push_back(10);
+
+  force_functor2 F(p);
+  pp_observer_p O(prev);
+  vector_type V = vector_type(SIM_COUNT*total_size);
+  for(int i = 0; i < SIM_COUNT; ++i)
+  {
+    thrust::copy(init.begin(),init.end(),V.begin()+i*total_size);
+  }
+
+  json::Array* grid = new json::Array();
+
+  double linear_step[SIM_COUNT];
+  double magnitude[SIM_COUNT];
+  double lower_bound[SIM_COUNT];
+  double upper_bound[SIM_COUNT];
+  bool have_upper[SIM_COUNT];
+  bool have_lower[SIM_COUNT];
+  double theta_begin[SIM_COUNT];
+  double theta_end[SIM_COUNT];
+  double theta_h[SIM_COUNT];
+  double t[SIM_COUNT];
+  int outcome[i];
+
+  for(int i = 0; i < SIM_COUNT; ++i)
+  {
+    linear_step[i] = 20;
+    magnitude[i] = 40;
+    lower_bound[i] = 0;
+    upper_bound[i] = 100;
+    have_lower[i] = false;
+    have_upper[i] = false;
+    theta_begin[i] = 0 + i*15;
+    theta_end[i] = 15 + i*15;
+    theta_h[i] = 1;
+    t[i] = theta_begin[i];
+    outcome[i] = -1;
+  }
+
+  double dt = .01;
+  bool SIM_COMPLETE = false;
+
+  double l[SIM_COUNT], m[SIM_COUNT];
+  bool found[SIM_COUNT] = {false};
+  bool done[SIM_COUNT] = {false};
+  bool complete[i] = {false};
+
+  while(not SIM_COMPLETE)
+  {
+    SIM_COMPLETE = true;
+    for(int i = 0; i < SIM_COUNT; ++i)
+    {
+      if(t[i] < theat_end[i])
+        complete[i] = true;
+      SIM_COMPLETE = SIM_COMPLETE and complete[i];
+      if(found[i])
+      {
+        t[i] += theta_h[i];
+        found[i] = false;
+        have_lower[i] = false;
+        have_upper[i] = false;
+      }
+
+      l[i] = -magnitude[i]*sin(PI*t[i]/180);
+      m[i] = magnitude[i]*cos(PI*t[i]/180);
+      if(t[i] != theta_begin[i])
+        linear_step[i] = 1;
+      F.lambda[i] = l[i];
+      F.mu[i] = m[i];
+    }
+
+    if(SIM_COMPLETE)
+      break;
+
+    integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
+        F, V, times.begin(), times.end(), dt, O);
+
+    for(int i = 0; i < SIM_COUNT; ++i)
+    {
+      vector_type diff(2*size+2);
+      thrust::minus<value_type> op;
+      thrust::transform(V.begin()+i*total_size,
+                        V.begin()+(i+1)*total_size,
+                        prev.begin()+i*total_size,
+                        diff.begin(), op);
+
+      value_type equil = sqrt(thrust::inner_product(
+              diff.begin(),diff.begin()+2*size,diff.begin(),0.));
+      value_type adhesion = sqrt(thrust::inner_product(
+              diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
+      value_type d = sqrt(l[i]*l[i] + m[i]*m[i]);
+
+      if(abs(adhesion - d) < p.abstol and not complete[i])
+      { // Pulled off
+        done[i] = true;
+        json::Array* temp = new json::Array();
+        temp->push_back(new json::Number(t));
+        temp->push_back(new json::Number(l));
+        temp->push_back(new json::Number(m));
+        temp->push_back(new json::Number(0));
+        grid->push_back(temp);
+        outcome[i] = 0;
+        std::cout << "Pulled off. t: " << t << " m: " << m << " l: " << l << std::endl;
+      }else if(equil < p.abstol and adhesion < p.abstol and not complete[i])
+      { // Adhered
+        done[i] = true;
+        json::Array* temp = new json::Array();
+        temp->push_back(new json::Number(t));
+        temp->push_back(new json::Number(l));
+        temp->push_back(new json::Number(m));
+        temp->push_back(new json::Number(1));
+        grid->push_back(temp);
+        outcome[i] = 1;
+        std::cout << "Adhered. t: " << t << " m: " << m << " l: " << l << std::endl;
+      }
+
+      if(done[i])
+      {
+        thrust::copy(init.begin(),init.end(),V.begin()+i*total_size);
+        if(have_upper[i] and have_lower[i] and abs(upper_bound[i] - lower_bound[i]) < .5)
+        {
+          found[i] = true;
+        }
+
+        if(not have_lower[i] or not have_upper[i])
+        {
+          if(outcome[i] == 1) // Adhered
+          {
+            lower_bound[i] = magnitude[i];
+            have_lower[i] = true;
+            if(not have_upper[i])
+              magnitude[i] = magnitude[i] + linear_step[i];
+          }else if(outcome[i] == 0) // Pulled Off
+          {
+            upper_bound[i] = magnitude[i];
+            have_upper[i] = true;
+            if(not have_lower[i])
+              magnitude[i] = magnitude[i] - linear_step[i];
+          }
+        }
+
+        if(have_lower[i] and have_upper[i])
+        {
+          if(outcome[i] == 1) // Adhered
+            lower_bound[i] = magnitude[i];
+          else if(outcome[i] == 0) // Pulled Off
+            upper_bound[i] = magnitude[i];
+          magnitude[i] = lower_bound[i] + (upper_bound[i] - lower_bound[i]) / 2;
+        }
+        done[i] = false;
+      }
+    }
+  }
+
+  cudaEventRecord(stop,0);
+  cudaEventSynchronize(stop);
+  cudaEventElapsedTime(&timer,start,stop);
+  cudaEventDestroy(start);
+  cudaEventDestroy(stop);
+
+  std::cout << "time: " << timer << " ms " << (timer/1000) << " s" << std::endl;
+
+  obj["grid"] = grid;
+  std::ofstream File("pp.json");
+  json::print(File,obj);
+  std::ofstream File2("/home/marmaduke/pp.json");
+  json::print(File2,obj);
+}
+
 void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
 {
-	int size = p.m*p.n;
+  int size = p.m*p.n;
   cudaEvent_t start, stop;
   float timer;
 
@@ -165,7 +362,7 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
           std::cout << "Adhered. l: " << l << " m: " << m << std::endl;
         }
       }
-			thrust::copy(init.begin(),init.end(),V.begin());
+      thrust::copy(init.begin(),init.end(),V.begin());
 
       if(have_upper and have_lower and abs(upper_bound - lower_bound) < .5)
       {
@@ -198,7 +395,7 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
         magnitude = lower_bound + (upper_bound - lower_bound) / 2;
       }
 
-			std::cout << "h_l " << have_lower << " h_u " << have_upper << " l_b " << lower_bound << " u_b " << upper_bound << std::endl;
+      std::cout << "h_l " << have_lower << " h_u " << have_upper << " l_b " << lower_bound << " u_b " << upper_bound << std::endl;
       ++output_i;
     }
   }
@@ -220,7 +417,7 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
 
 void equillibriate(parameter& p, json::Object& obj, vector_type& init)
 {
-	int size = p.m*p.n;
+  int size = p.m*p.n;
   cudaEvent_t start, stop;
   float timer;
 
@@ -296,8 +493,8 @@ int main()
   json::Number* device = as<json::Number>(obj["device"]);
   int t = num->val;
   int d = device->val;
-	
-	cudaSetDevice(d);
+
+  cudaSetDevice(d);
 
   parameter p(obj);
   int size = p.m*p.n;

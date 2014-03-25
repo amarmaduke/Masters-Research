@@ -19,4 +19,17 @@ struct force_functor
                    const value_type dt);
 };
 
+struct force_functor2
+{
+  parameter& state;
+  double lambda[SIM_COUNT];
+  double mu[SIM_COUNT];
+
+  force_functor2(parameter& p) : state(p) { }
+
+  void operator() (const vector_type &x,
+                   vector_type &dxdt,
+                   const value_type dt);
+};
+
 #endif
