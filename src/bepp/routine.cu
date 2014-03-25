@@ -77,7 +77,7 @@ struct pp_observer_p
 {
   vector_type& prev;
 
-  pp_observer(vector_type& p) : prev(p) { }
+  pp_observer_p(vector_type& p) : prev(p) { }
 
   template<typename State >
   void operator() (const State&x, value_type t)
@@ -123,7 +123,7 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
   double theta_end[SIM_COUNT];
   double theta_h[SIM_COUNT];
   double t[SIM_COUNT];
-  int outcome[i];
+  int outcome[SIM_COUNT];
 
   for(int i = 0; i < SIM_COUNT; ++i)
   {
@@ -146,14 +146,14 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
   double l[SIM_COUNT], m[SIM_COUNT];
   bool found[SIM_COUNT] = {false};
   bool done[SIM_COUNT] = {false};
-  bool complete[i] = {false};
+  bool complete[SIM_COUNT] = {false};
 
   while(not SIM_COMPLETE)
   {
     SIM_COMPLETE = true;
     for(int i = 0; i < SIM_COUNT; ++i)
     {
-      if(t[i] < theat_end[i])
+      if(t[i] < theta_end[i])
         complete[i] = true;
       SIM_COMPLETE = SIM_COMPLETE and complete[i];
       if(found[i])
@@ -197,9 +197,9 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
       { // Pulled off
         done[i] = true;
         json::Array* temp = new json::Array();
-        temp->push_back(new json::Number(t));
-        temp->push_back(new json::Number(l));
-        temp->push_back(new json::Number(m));
+        temp->push_back(new json::Number(t[i]));
+        temp->push_back(new json::Number(l[i]));
+        temp->push_back(new json::Number(m[i]));
         temp->push_back(new json::Number(0));
         grid->push_back(temp);
         outcome[i] = 0;
@@ -208,9 +208,9 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
       { // Adhered
         done[i] = true;
         json::Array* temp = new json::Array();
-        temp->push_back(new json::Number(t));
-        temp->push_back(new json::Number(l));
-        temp->push_back(new json::Number(m));
+        temp->push_back(new json::Number(t[i]));
+        temp->push_back(new json::Number(l[i]));
+        temp->push_back(new json::Number(m[i]));
         temp->push_back(new json::Number(1));
         grid->push_back(temp);
         outcome[i] = 1;

@@ -370,6 +370,7 @@ force_functor2::operator() ( const vector_type &x,
                             const value_type dt)
 {
   int size = this->state.n*this->state.m;
+	int total_size = 2*size+2;
   int B = size%K != 0? size/K + 1 : size/K;
   dim3 block_other(B,1,1), thread_other(K,1,1);
   dim3 block_nbody(B,1,1), thread_nbody(K,1,1);
