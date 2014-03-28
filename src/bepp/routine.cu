@@ -21,11 +21,11 @@ using namespace boost::numeric::odeint;
 template<typename T>
 struct absolute_value : public thrust::unary_function<T,T>
 {
-	__host__ __device__
-	T operator()(const T& x) const
-	{
-		return x < T(0) ? -x : x;
-	}
+  __host__ __device__
+  T operator()(const T& x) const
+  {
+    return x < T(0) ? -x : x;
+  }
 };
 
 struct observer
@@ -105,23 +105,26 @@ struct pp_observer_p
 void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
 {
   int size = p.m*p.n;
-	int total_size = 2*size+2;
+  int total_size = 2*size+2;
   cudaEvent_t start, stop;
   float timer;
 
-	std::vector< std::vector<value_type> > theta_ranges;
-	json::Array* range = as<json::Array>(obj["range"]);
-	for(int i = 0; i < SIM_COUNT; ++i)
-	{
-		std::vector<value_type> temp;
-		json::Array* r_temp = as<json::Array>((*range)[i]);
-		for(int j = 0; j < 3; ++j)
-		{
-			json::Number* n_temp = as<json::Number>((*r_temp)[j]);
-			temp.push_back(n_temp->val);
-		}
-		theta_ranges.push_back(temp);
-	}
+  json::Number* m_tol = as<json::Number>(obj["movtol"]);
+  double movtol = m_tol->val;
+
+  std::vector< std::vector<value_type> > theta_ranges;
+  json::Array* range = as<json::Array>(obj["range"]);
+  for(int i = 0; i < SIM_COUNT; ++i)
+  {
+    std::vector<value_type> temp;
+    json::Array* r_temp = as<json::Array>((*range)[i]);
+    for(int j = 0; j < 3; ++j)
+    {
+      json::Number* n_temp = as<json::Number>((*r_temp)[j]);
+      temp.push_back(n_temp->val);
+    }
+    theta_ranges.push_back(temp);
+  }
 
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
@@ -168,7 +171,7 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
     outcome[i] = -1;
   }
 
-	double time = 0.0;
+  double time = 0.0;
   double dt = 1e-6;
   bool SIM_COMPLETE = false;
 
@@ -177,8 +180,8 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
   bool done[SIM_COUNT] = {false};
   bool complete[SIM_COUNT] = {false};
 
-	controlled_runge_kutta< stepper_type > stepper
-					= make_controlled(p.abstol,p.reltol,stepper_type());
+  controlled_runge_kutta< stepper_type > stepper
+          = make_controlled(p.abstol,p.reltol,stepper_type());
 
   while(not SIM_COMPLETE)
   {
@@ -207,22 +210,22 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
     if(SIM_COMPLETE)
       break;
 
-		
+
     //integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
     //    F, V, times.begin(), times.end(), dt, O);
-		controlled_step_result result = success;
-		thrust::copy(V.begin(),V.end(),prev.begin());
-		do
-		{
-			// Time is irrelevant for us.
-			result = stepper.try_step(F,V,time,dt);
-			if(dt < 1e-14)
-			{
-				const char * error_string = "dt is too small.";
-				throw std::overflow_error( error_string );
-			}
-		}while(result != success);
-		time = 0;
+    controlled_step_result result = success;
+    thrust::copy(V.begin(),V.end(),prev.begin());
+    do
+    {
+      // Time is irrelevant for us.
+      result = stepper.try_step(F,V,time,dt);
+      if(dt < 1e-14)
+      {
+        const char * error_string = "dt is too small.";
+        throw std::overflow_error( error_string );
+      }
+    }while(result != success);
+    time = 0;
 
     for(int i = 0; i < SIM_COUNT; ++i)
     {
@@ -233,13 +236,17 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
                         prev.begin()+i*total_size,
                         diff.begin(), op);
 
-      value_type equil = sqrt(thrust::inner_product(
-              diff.begin(),diff.begin()+2*size,diff.begin(),0.));
-      value_type adhesion = sqrt(thrust::inner_product(
-              diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
+      value_type equil = thrust::transform_reduce(
+                diff.begin(),diff.begin()+2*size,absolute_value<value_type>(),
+                0.0,thrust::maximum<value_type>());
+
+      value_type adhesion = thrust::transform_reduce(
+                diff.begin()+2*size,diff.end(),absolute_value<value_type>(),
+                0.0,thrust::maximum<value_type>());
+
       value_type d = sqrt(l[i]*l[i] + m[i]*m[i]);
 
-      if(abs(adhesion - d) < p.abstol and not complete[i])
+      if(abs(adhesion - d) < movtol and not complete[i])
       { // Pulled off
         done[i] = true;
         json::Array* temp = new json::Array();
@@ -250,7 +257,7 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
         grid->push_back(temp);
         outcome[i] = 0;
         std::cout << "Pulled off. t: " << t[i] << " m: " << m[i] << " l: " << l[i] << std::endl;
-      }else if(equil < p.abstol and adhesion < p.abstol and not complete[i])
+      }else if(equil < movtol and adhesion < movtol and not complete[i])
       { // Adhered
         done[i] = true;
         json::Array* temp = new json::Array();
@@ -480,59 +487,52 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
 
   bool swtch = false;
   int obs_count = 0;
-	
-	json::Number* m_tol = as<json::Number>(obj["movtol"]);
-	double movtol = m_tol->val;
+
+  json::Number* m_tol = as<json::Number>(obj["movtol"]);
+  double movtol = m_tol->val;
 
 
   force_functor F(p);
   pp_observer O(prev,curr,obj,swtch,obs_count);
 
-	controlled_runge_kutta< stepper_type > stepper
-					= make_controlled(p.abstol,p.reltol,stepper_type());
+  controlled_runge_kutta< stepper_type > stepper
+          = make_controlled(p.abstol,p.reltol,stepper_type());
 
   value_type dt = 1e-6;
-	double time = 0;
+  double time = 0;
 
   while(true)
   {
-		controlled_step_result result = success;
-		thrust::copy(init.begin(),init.end(),prev.begin());
-		do
-		{
-			// Time is irrelevant for us.
-			result = stepper.try_step(F,init,time,dt);
-			if(dt < 1e-14)
-			{
-				const char * error_string = "dt is too small.";
-				throw std::overflow_error( error_string );
-			}
-		}while(result != success);
-		time = 0;
+    controlled_step_result result = success;
+    thrust::copy(init.begin(),init.end(),prev.begin());
+    do
+    {
+      // Time is irrelevant for us.
+      result = stepper.try_step(F,init,time,dt);
+      if(dt < 1e-14)
+      {
+        const char * error_string = "dt is too small.";
+        throw std::overflow_error( error_string );
+      }
+    }while(result != success);
+    time = 0;
 
     vector_type diff(2*size+2);
     thrust::minus<value_type> op;
     thrust::transform(init.begin(),init.end(),prev.begin(),diff.begin(),op);
-    //value_type equil = sqrt(thrust::inner_product(
-    //            diff.begin(),diff.begin()+2*size,diff.begin(),0.));
+
     value_type equil = thrust::transform_reduce(
-								diff.begin(),diff.begin()+2*size,absolute_value<value_type>(),
-								0.0,thrust::maximum<value_type>());
-    value_type equil_r = thrust::transform_reduce(
-								init.begin(),init.begin()+2*size,absolute_value<value_type>(),
-								0.0,thrust::maximum<value_type>());
-		//value_type adhesion = sqrt(thrust::inner_product(
-    //            diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
-		value_type adhesion = thrust::transform_reduce(
-								diff.begin()+2*size,diff.end(),absolute_value<value_type>(),
-								0.0,thrust::maximum<value_type>());
-		value_type adhesion_r = thrust::transform_reduce(
-								init.begin()+2*size,init.end(),absolute_value<value_type>(),
-								0.0,thrust::maximum<value_type>());
+                diff.begin(),diff.begin()+2*size,absolute_value<value_type>(),
+                0.0,thrust::maximum<value_type>());
+
+    value_type adhesion = thrust::transform_reduce(
+                diff.begin()+2*size,diff.end(),absolute_value<value_type>(),
+                0.0,thrust::maximum<value_type>());
+
     value_type d = sqrt(p.lambda*p.lambda + p.mu*p.mu);
-    std::cout << "equil: " << (equil/equil_r) << " adhesion: " << (adhesion/adhesion_r) << " d: " << d << std::endl;
+
     if(abs(d - adhesion) < movtol or
-      (equil/equil_r < movtol and adhesion/adhesion_r < movtol))
+      (equil < movtol and adhesion < movtol))
     {
       break;
     }
@@ -618,10 +618,10 @@ int main()
       std::cout << "Pulloff Profile" << std::endl;
       pulloff_profile(p,obj,init);
       break;
-		case 2:
-			std::cout << "Pulloff Profile Parallel" << std::endl;
-			pulloff_profile_p(p,obj,init);
-			break;
+    case 2:
+      std::cout << "Pulloff Profile Parallel" << std::endl;
+      pulloff_profile_p(p,obj,init);
+      break;
     default:
       std::cout << "Equillibriate" << std::endl;
       equillibriate(p,obj,init);
