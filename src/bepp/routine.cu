@@ -500,6 +500,7 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
 
   value_type dt = 1e-6;
   double time = 0, p_time = 0;
+	int count = 0;
 
   while(true)
   {
@@ -528,6 +529,7 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
       ss << "tq" << count;
       obj[ss.str()] = a;
       p_time = time;
+			++count;
     }
 
     vector_type diff(2*size+2);
@@ -609,6 +611,8 @@ int main()
       {
         init[index] = d_delta[j] - ((double)i);
         init[index+size] = 1;
+				init[index] = d_delta[j];
+				init[index+size] = i+1;
       }
     }
   }
