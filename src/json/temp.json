@@ -1,4 +1,7 @@
 {
+	"type":0,
+	"device":0,
+
 	"m":1,
 	"n":96,
 
@@ -9,6 +12,7 @@
 	"lambda":25,
 	"mu":-15,
 	"sigma":1,
+	"pressure":0,
 
 	"delta":[0],
 
@@ -22,5 +26,6 @@
 	"osub_count":150,
 
 	"reltol":1e-9,
-	"abstol":1e-9
+	"abstol":1e-9,
+	"movtol":1e-5
 }
