@@ -156,6 +156,9 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
   double t[SIM_COUNT];
   int outcome[SIM_COUNT];
 
+  double time[SIM_COUNT]();
+  double p_time[SIM_COUNT]();
+
   for(int i = 0; i < SIM_COUNT; ++i)
   {
     linear_step[i] = 49;
@@ -171,7 +174,6 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
     outcome[i] = -1;
   }
 
-  double time = 0.0;
   double dt = 1e-6;
   bool SIM_COMPLETE = false;
 
@@ -205,6 +207,7 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
         linear_step[i] = 10;
       F.lambda[i] = l[i];
       F.mu[i] = m[i];
+      p_time[i] = time[i];
     }
 
     if(SIM_COMPLETE)
@@ -218,17 +221,17 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
     do
     {
       // Time is irrelevant for us.
-      result = stepper.try_step(F,V,time,dt);
+      result = stepper.try_step(F,V,0.0,dt);
       if(dt < 1e-14)
       {
         const char * error_string = "dt is too small.";
         throw std::overflow_error( error_string );
       }
     }while(result != success);
-    time = 0;
 
     for(int i = 0; i < SIM_COUNT; ++i)
     {
+      time[i] += dt;
       vector_type diff(total_size);
       thrust::minus<value_type> op;
       thrust::transform(V.begin()+i*total_size,
@@ -240,9 +243,10 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
                 diff.begin(),diff.begin()+2*size,absolute_value<value_type>(),
                 0.0,thrust::maximum<value_type>());
 
-      value_type adhesion = thrust::transform_reduce(
-                diff.begin()+2*size,diff.end(),absolute_value<value_type>(),
-                0.0,thrust::maximum<value_type>());
+      value_type adhesion = sqrt(thrust::inner_product(
+                  diff.begin()+2*size,diff.end(),diff.begin(),diff.begin()));
+
+      adhesion \= (time[i] - p_time[i]);
 
       value_type d = sqrt(l[i]*l[i] + m[i]*m[i]);
 
@@ -500,7 +504,7 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
 
   value_type dt = 1e-6;
   double time = 0, p_time = 0;
-	int count = 0;
+  int count = 0;
 
   while(true)
   {
@@ -509,13 +513,14 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
     do
     {
       // Time is irrelevant for us.
-      result = stepper.try_step(F,init,time,dt);
+      result = stepper.try_step(F,init,0.0,dt);
       if(dt < 1e-14)
       {
         const char * error_string = "dt is too small.";
         throw std::overflow_error( error_string );
       }
     }while(result != success);
+    time += dt;
 
     if(time - p_time > 1)
     {
@@ -529,7 +534,7 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
       ss << "tq" << count;
       obj[ss.str()] = a;
       p_time = time;
-			++count;
+      ++count;
     }
 
     vector_type diff(2*size+2);
@@ -540,12 +545,14 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
                 diff.begin(),diff.begin()+2*size,absolute_value<value_type>(),
                 0.0,thrust::maximum<value_type>());
 
-    value_type adhesion = thrust::transform_reduce(
-                diff.begin()+2*size,diff.end(),absolute_value<value_type>(),
-                0.0,thrust::maximum<value_type>());
+    value_type adhesion = sqrt(thrust::inner_product(
+                diff.begin()+2*size,diff.end(),diff.begin(),diff.begin()));
+
+    adhesion \= (time - p_time);
 
     value_type d = sqrt(p.lambda*p.lambda + p.mu*p.mu);
 
+    std::cout << "equil: " << equil << " adhesion: " << adhesion << " d: " << d << std::endl;
     if(abs(d - adhesion) < movtol or
       (equil < movtol and adhesion < movtol))
     {
@@ -611,8 +618,8 @@ int main()
       {
         init[index] = d_delta[j] - ((double)i);
         init[index+size] = 1;
-				init[index] = d_delta[j];
-				init[index+size] = i+1;
+        init[index] = d_delta[j];
+        init[index+size] = i+1;
       }
     }
   }
