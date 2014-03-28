@@ -6,14 +6,27 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/inner_product.h>
+#include <thrust/functional.h>
+#include <thrust/transform_reduce.h>
 #include <boost/numeric/odeint.hpp>
 #include <boost/numeric/odeint/external/thrust/thrust.hpp>
+#include <boost/ref.hpp>
 
 #include "force.h"
 #include "defs.h"
 #include "../json/json.h"
 
 using namespace boost::numeric::odeint;
+
+template<typename T>
+struct absolute_value : public thrust::unary_function<T,T>
+{
+	__host__ __device__
+	T operator()(const T& x) const
+	{
+		return x < T(0) ? -x : x;
+	}
+};
 
 struct observer
 {
@@ -91,9 +104,24 @@ struct pp_observer_p
 
 void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
 {
-  int size = p.m*p.n, total_size = 2*size+2;
+  int size = p.m*p.n;
+	int total_size = 2*size+2;
   cudaEvent_t start, stop;
   float timer;
+
+	std::vector< std::vector<value_type> > theta_ranges;
+	json::Array* range = as<json::Array>(obj["range"]);
+	for(int i = 0; i < SIM_COUNT; ++i)
+	{
+		std::vector<value_type> temp;
+		json::Array* r_temp = as<json::Array>((*range)[i]);
+		for(int j = 0; j < 3; ++j)
+		{
+			json::Number* n_temp = as<json::Number>((*r_temp)[j]);
+			temp.push_back(n_temp->val);
+		}
+		theta_ranges.push_back(temp);
+	}
 
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
@@ -127,20 +155,21 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
 
   for(int i = 0; i < SIM_COUNT; ++i)
   {
-    linear_step[i] = 20;
-    magnitude[i] = 40;
+    linear_step[i] = 49;
+    magnitude[i] = 75;
     lower_bound[i] = 0;
     upper_bound[i] = 100;
     have_lower[i] = false;
     have_upper[i] = false;
-    theta_begin[i] = 0 + i*15;
-    theta_end[i] = 15 + i*15;
-    theta_h[i] = 1;
+    theta_begin[i] = theta_ranges[i][0];
+    theta_end[i] = theta_ranges[i][2];
+    theta_h[i] = theta_ranges[i][1];
     t[i] = theta_begin[i];
     outcome[i] = -1;
   }
 
-  double dt = .01;
+	double time = 0.0;
+  double dt = 1e-6;
   bool SIM_COMPLETE = false;
 
   double l[SIM_COUNT], m[SIM_COUNT];
@@ -148,12 +177,15 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
   bool done[SIM_COUNT] = {false};
   bool complete[SIM_COUNT] = {false};
 
+	controlled_runge_kutta< stepper_type > stepper
+					= make_controlled(p.abstol,p.reltol,stepper_type());
+
   while(not SIM_COMPLETE)
   {
     SIM_COMPLETE = true;
     for(int i = 0; i < SIM_COUNT; ++i)
     {
-      if(t[i] < theta_end[i])
+      if(t[i] > theta_end[i])
         complete[i] = true;
       SIM_COMPLETE = SIM_COMPLETE and complete[i];
       if(found[i])
@@ -167,7 +199,7 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
       l[i] = -magnitude[i]*sin(PI*t[i]/180);
       m[i] = magnitude[i]*cos(PI*t[i]/180);
       if(t[i] != theta_begin[i])
-        linear_step[i] = 1;
+        linear_step[i] = 10;
       F.lambda[i] = l[i];
       F.mu[i] = m[i];
     }
@@ -175,12 +207,26 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
     if(SIM_COMPLETE)
       break;
 
-    integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
-        F, V, times.begin(), times.end(), dt, O);
+		
+    //integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
+    //    F, V, times.begin(), times.end(), dt, O);
+		controlled_step_result result = success;
+		thrust::copy(V.begin(),V.end(),prev.begin());
+		do
+		{
+			// Time is irrelevant for us.
+			result = stepper.try_step(F,V,time,dt);
+			if(dt < 1e-14)
+			{
+				const char * error_string = "dt is too small.";
+				throw std::overflow_error( error_string );
+			}
+		}while(result != success);
+		time = 0;
 
     for(int i = 0; i < SIM_COUNT; ++i)
     {
-      vector_type diff(2*size+2);
+      vector_type diff(total_size);
       thrust::minus<value_type> op;
       thrust::transform(V.begin()+i*total_size,
                         V.begin()+(i+1)*total_size,
@@ -203,7 +249,7 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
         temp->push_back(new json::Number(0));
         grid->push_back(temp);
         outcome[i] = 0;
-        std::cout << "Pulled off. t: " << t << " m: " << m << " l: " << l << std::endl;
+        std::cout << "Pulled off. t: " << t[i] << " m: " << m[i] << " l: " << l[i] << std::endl;
       }else if(equil < p.abstol and adhesion < p.abstol and not complete[i])
       { // Adhered
         done[i] = true;
@@ -214,7 +260,7 @@ void pulloff_profile_p(parameter& p, json::Object& obj, vector_type& init)
         temp->push_back(new json::Number(1));
         grid->push_back(temp);
         outcome[i] = 1;
-        std::cout << "Adhered. t: " << t << " m: " << m << " l: " << l << std::endl;
+        std::cout << "Adhered. t: " << t[i] << " m: " << m[i] << " l: " << l[i] << std::endl;
       }
 
       if(done[i])
@@ -293,7 +339,7 @@ void pulloff_profile(parameter& p, json::Object& obj, vector_type& init)
 
   json::Array* grid = new json::Array();
 
-  double linear_step = 20;
+  double linear_step = 9;
   int output_i = 1;
   double magnitude = 40;
   double lower_bound = 0;
@@ -434,28 +480,59 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
 
   bool swtch = false;
   int obs_count = 0;
+	
+	json::Number* m_tol = as<json::Number>(obj["movtol"]);
+	double movtol = m_tol->val;
+
 
   force_functor F(p);
   pp_observer O(prev,curr,obj,swtch,obs_count);
 
-  value_type dt = .05;
+	controlled_runge_kutta< stepper_type > stepper
+					= make_controlled(p.abstol,p.reltol,stepper_type());
+
+  value_type dt = 1e-6;
+	double time = 0;
 
   while(true)
   {
-    integrate_times(make_controlled(p.abstol, p.reltol, stepper_type()),
-                  F, init, times.begin(), times.end(), dt, O);
+		controlled_step_result result = success;
+		thrust::copy(init.begin(),init.end(),prev.begin());
+		do
+		{
+			// Time is irrelevant for us.
+			result = stepper.try_step(F,init,time,dt);
+			if(dt < 1e-14)
+			{
+				const char * error_string = "dt is too small.";
+				throw std::overflow_error( error_string );
+			}
+		}while(result != success);
+		time = 0;
 
     vector_type diff(2*size+2);
     thrust::minus<value_type> op;
-    thrust::transform(curr.begin(),curr.end(),prev.begin(),diff.begin(),op);
-    value_type equil = sqrt(thrust::inner_product(
-                diff.begin(),diff.begin()+2*size,diff.begin(),0.));
-    value_type adhesion = sqrt(thrust::inner_product(
-                diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
+    thrust::transform(init.begin(),init.end(),prev.begin(),diff.begin(),op);
+    //value_type equil = sqrt(thrust::inner_product(
+    //            diff.begin(),diff.begin()+2*size,diff.begin(),0.));
+    value_type equil = thrust::transform_reduce(
+								diff.begin(),diff.begin()+2*size,absolute_value<value_type>(),
+								0.0,thrust::maximum<value_type>());
+    value_type equil_r = thrust::transform_reduce(
+								init.begin(),init.begin()+2*size,absolute_value<value_type>(),
+								0.0,thrust::maximum<value_type>());
+		//value_type adhesion = sqrt(thrust::inner_product(
+    //            diff.begin()+2*size,diff.end(),diff.begin()+2*size,0.));
+		value_type adhesion = thrust::transform_reduce(
+								diff.begin()+2*size,diff.end(),absolute_value<value_type>(),
+								0.0,thrust::maximum<value_type>());
+		value_type adhesion_r = thrust::transform_reduce(
+								init.begin()+2*size,init.end(),absolute_value<value_type>(),
+								0.0,thrust::maximum<value_type>());
     value_type d = sqrt(p.lambda*p.lambda + p.mu*p.mu);
-    std::cout << "equil: " << equil << " adhesion: " << adhesion << " d: " << d << std::endl;
-    if(abs(d - adhesion) < p.abstol or
-      (equil < p.abstol and adhesion < p.abstol))
+    std::cout << "equil: " << (equil/equil_r) << " adhesion: " << (adhesion/adhesion_r) << " d: " << d << std::endl;
+    if(abs(d - adhesion) < movtol or
+      (equil/equil_r < movtol and adhesion/adhesion_r < movtol))
     {
       break;
     }
@@ -517,8 +594,8 @@ int main()
         init[index+size] = p.init[index+size];
       }else
       {
-        init[index] = d_delta[j];
-        init[index+size] = i+1;
+        init[index] = d_delta[j] - ((double)i);
+        init[index+size] = 1;
       }
     }
   }
@@ -541,6 +618,10 @@ int main()
       std::cout << "Pulloff Profile" << std::endl;
       pulloff_profile(p,obj,init);
       break;
+		case 2:
+			std::cout << "Pulloff Profile Parallel" << std::endl;
+			pulloff_profile_p(p,obj,init);
+			break;
     default:
       std::cout << "Equillibriate" << std::endl;
       equillibriate(p,obj,init);

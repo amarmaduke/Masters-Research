@@ -1,6 +1,42 @@
 #include "force.h"
 #include <stdio.h>
 
+
+// Concept Binary Operator Op
+//		requires (T a, T b){ op(a,b) -> T }
+template<typename Op>
+__global__
+void scan(value_type* v, size_t size, Op op)
+{
+  int index = blockDim.x * blockIdx.x + threadIdx.x;
+	value_type val = v[index];
+	for(int i = 1; i < size; ++i)
+	{
+		if(index + i < size)
+		{
+			value_type temp = v[index+i];
+			v[index+i] = op(temp,val);
+		}
+		__syncthreads();
+	}
+}
+
+template<typename Op>
+__global__
+void combine(value_type* out, value_type* a, value_type* b, size_t size, Op op)
+{
+	int index = blockDim.x * blockIdx.x + threadIdx.x;
+	if(index < size)
+	{
+		value_type temp_xa = a[index];
+		value_type temp_ya = a[index+size];
+		value_type temp_xb = b[index];
+		value_type temp_yb = b[index+size];
+		out[index] = op(temp_xa,temp_xb);
+		out[index+size] = op(temp_ya,temp_yb);
+	}
+}
+
 __device__
 void position(int& j, int& i, const int ptr, const parameter& p)
 {
@@ -31,6 +67,7 @@ void compute_other( value_type* const out_x,
   value_type gamma = p.gamma;
   value_type epsilon = p.epsilon;
   value_type sigma = p.sigma;
+	value_type pressure = p.pressure;
   value_type* delta = p.delta;
 
   position(j,i,index,p);
@@ -67,66 +104,46 @@ void compute_other( value_type* const out_x,
   value_type product_c = xd_c + yd_c;
   value_type product_b = xd_b + yd_b;
 
-  value_type forward_1 = lnn / (ln * product_f);
-  value_type forward_2 = ln*lnn/(product_f*product_f);
-  value_type center_1 = ln/(l*product_c);
-  value_type center_2 = l/(ln*product_c);
-  value_type center_3 = -l*ln/(product_c*product_c);
-  value_type backward_1 = lp/(l*product_b);
-  value_type backward_2 = lp*l/(product_b*product_b);
+  value_type b_3_t1 = 4.0*(lnn/ln)*product_f;
+	value_type b_3_t2 = 4.0*(lnn*ln);
+	value_type b_3_b = (lnn*ln + product_f)*(lnn*ln+product_f);
+	value_type b_3x = (b_3_t1*(x-xn) - b_3_t2*(xn-xnn))/b_3_b;
+	value_type b_3y = (b_3_t1*(y-yn) - b_3_t2*(yn-ynn))/b_3_b;
 
-  value_type forward_1x = forward_1*(x-xn);
-  value_type forward_2x = forward_2*(xnn-xn);
-  value_type center_1x = center_1*(x-xp);
-  value_type center_2x = center_2*(x-xn);
-  value_type center_3x = center_3*(xn-2*x+xp);
-  value_type backward_1x = backward_1*(x-xp);
-  value_type backward_2x = backward_2*(xpp-xp);
+	value_type b_2_t1x = 4.0*(l/ln*(x-xn) + ln/l*(x-xp))*product_c;
+	value_type b_2_t2x = 4.0*ln*l*(xp-2.0*x+xn);
+	value_type b_2_t1y = 4.0*(l/ln*(y-yn) + ln/l*(y-yp))*product_c;
+	value_type b_2_t2y = 4.0*ln*l*(yp-2.0*y+yn);
+	value_type b_2_b = (ln*l + product_c)*(ln*l + product_c);
+	value_type b_2x = (b_2_t1x - b_2_t2x)/b_2_b;
+	value_type b_2y = (b_2_t1y - b_2_t2y)/b_2_b;
 
-  value_type forward_1y = forward_1*(y-yn);
-  value_type forward_2y = forward_2*(ynn-yn);
-  value_type center_1y = center_1*(y-yp);
-  value_type center_2y = center_2*(y-yn);
-  value_type center_3y = center_3*(yn-2*y+yp);
-  value_type backward_1y = backward_1*(y-yp);
-  value_type backward_2y = backward_2*(ypp-yp);
+	value_type b_1_t1 = 4.0*(lp/l)*product_b;
+	value_type b_1_t2 = 4.0*l*lp;
+	value_type b_1_b = (l*lp + product_b)*(l*lp + product_b);
+	value_type b_1x = (b_1_t1*(x-xp) - b_1_t2*(xp-xpp))/b_1_b;
+	value_type b_1y = (b_1_t1*(y-yp) - b_1_t2*(yp-ypp))/b_1_b;
 
-  forward_1x = isnan(forward_1x) ? 0 : forward_1x;
-  forward_2x = isnan(forward_2x) ? 0 : forward_2x;
-  center_1x = isnan(center_1x) ? 0 : center_1x;
-  center_2x = isnan(center_2x) ? 0 : center_2x;
-  center_3x = isnan(center_3x) ? 0 : center_3x;
-  backward_1x = isnan(backward_1x) ? 0 : backward_1x;
-  backward_2x = isnan(backward_2x) ? 0 : backward_2x;
+	b_1x = isnan(b_1x) ? 0 : b_1x;
+	b_2x = isnan(b_2x) ? 0 : b_2x;
+	b_3x = isnan(b_3x) ? 0 : b_3x;
 
-  forward_1y = isnan(forward_1y) ? 0 : forward_1y;
-  forward_2y = isnan(forward_2y) ? 0 : forward_2y;
-  center_1y = isnan(center_1y) ? 0 : center_1y;
-  center_2y = isnan(center_2y) ? 0 : center_2y;
-  center_3y = isnan(center_3y) ? 0 : center_3y;
-  backward_1y = isnan(backward_1y) ? 0 : backward_1y;
-  backward_2y = isnan(backward_2y) ? 0 : backward_2y;
+	b_1y = isnan(b_1y) ? 0 : b_1y;
+	b_2y = isnan(b_2y) ? 0 : b_2y;
+	b_3y = isnan(b_3y) ? 0 : b_3y;
 
-  value_type forward_x = forward_1x + forward_2x;
-  value_type center_x = center_1x + center_2x + center_3x;
-  value_type backward_x = backward_1x + backward_2x;
-
-  value_type forward_y = forward_1y + forward_2y;
-  value_type center_y = center_1y + center_2y + center_3y;
-  value_type backward_y = backward_1y + backward_2y;
-
-  value_type bending_x = beta*(forward_x + center_x + backward_x);
-  value_type bending_y = beta*(forward_y + center_y + backward_y);
+  value_type bending_x = beta*(b_1x + b_2x + b_3x);
+  value_type bending_y = beta*(b_1y + b_2y + b_3y);
 
   // Extensible Spring Force
 
   value_type e_forward = (ln - len)/ln;
   value_type e_backward = (l - len)/l;
 
-  value_type e_forward_x = e_forward*2*(x-xn);
-  value_type e_backward_x = e_backward*2*(x-xp);
-  value_type e_forward_y = e_forward*2*(y-yn);
-  value_type e_backward_y = e_backward*2*(y-yp);
+  value_type e_forward_x = e_forward*2.0*(x-xn);
+  value_type e_backward_x = e_backward*2.0*(x-xp);
+  value_type e_forward_y = e_forward*2.0*(y-yn);
+  value_type e_backward_y = e_backward*2.0*(y-yp);
 
   e_forward_x = isnan(e_forward_x) ? 0 : e_forward_x;
   e_backward_x = isnan(e_backward_x) ? 0 : e_backward_x;
@@ -145,7 +162,7 @@ void compute_other( value_type* const out_x,
   p5 = p4*p1;
   p11 = p5*p5*p1;
 
-  value_type vdW_y = -(PI*epsilon)*(2*p11-4*p5);
+  value_type vdW_y = -(pressure*PI*epsilon)*(2.0*p11-4.0*p5);
 
   // Upper substrate vdW
 
@@ -173,7 +190,7 @@ void compute_other( value_type* const out_x,
     p7 = p4*p2*p1;
     p8 = p7*p1;
     p13 = p8*p4*p1;
-    value_type LJval = -(12*epsilon/sigma)*(p13-p7);
+    value_type LJval = -(12.0*epsilon/sigma)*(p13-p7);
 
     s_vdW_x = s_vdW_x + LJval*temp_x;
     s_vdW_y = s_vdW_y + LJval*temp_y;
@@ -207,7 +224,7 @@ void compute_other( value_type* const out_x,
     p7 = p4*p2*p1;
     p8 = p7*p1;
     p13 = p8*p4*p1;
-    value_type LJval = -(12*epsilon/sigma)*(p13-p7);
+    value_type LJval = -(12.0*epsilon/sigma)*(p13-p7);
 
     os_vdW_x = os_vdW_x + LJval*temp_x;
     os_vdW_y = os_vdW_y + LJval*temp_y;
@@ -250,7 +267,7 @@ value_type2 lennard_jones(value_type2 v, value_type2 v_,
   value_type p7 = p4*p2*p1;
   value_type p8 = p7*p1;
   value_type p13 = p8*p4*p1;
-  value_type LJval = -(12*epsilon/sigma)*(p13-p7);
+  value_type LJval = -(12.0*epsilon/sigma)*(p13-p7);
 
   // Condense j == j_ and (i == i_ or i == i_ + 1 or i == i_ - 1) via two
   // always positive continuous functions with zeros only at those points.
@@ -357,6 +374,14 @@ force_functor::operator() ( const vector_type &x,
   dxdt[2*size] = sub_x + this->state.mu;
   dxdt[2*size+1] = sub_y - this->state.lambda;
 
+	/*
+	for(int i = 0; i < 2*size+2; ++i)
+	{
+		std::cout << dxdt[i] << " ";
+	} std::cout << std::endl;
+	assert(false);
+	*/
+
   cudaStreamDestroy(s1);
   cudaStreamDestroy(s2);
   cudaEventDestroy(e1);
@@ -388,37 +413,52 @@ force_functor2::operator() ( const vector_type &x,
   nbody = thrust::device_malloc<value_type>(2*size*SIM_COUNT);
   substrate = thrust::device_malloc<value_type>(2*size*SIM_COUNT);
 
+	#pragma unroll
   for(int i = 0; i < SIM_COUNT; ++i)
   {
     compute_other<<<block_other,thread_other,0,s[i]>>>
                   ( out + i*total_size, out+size + i*total_size,
-                    substrate.get() + i*total_size,
-                    substrate.get()+size + i*total_size,
+                    substrate.get() + i*2*size,
+                    substrate.get()+size + i*2*size,
                     in + i*total_size, in+size + i*total_size,
                     in+2*size + i*total_size, this->state);
 
-    cudaStreamSynchronize(s[i]);
-
-    value_type sub_x = thrust::reduce(substrate+i*total_size,
-                                      substrate+size+i*total_size);
-    value_type sub_y = thrust::reduce(substrate+size+i*total_size,
-                                      substrate+2*size+i*total_size);
+    //value_type sub_x = thrust::reduce(substrate+i*total_size,
+    //                                  substrate+size+i*total_size);
+    //value_type sub_y = thrust::reduce(substrate+size+i*total_size,
+    //                                  substrate+2*size+i*total_size);
 
     compute_n_body<<<block_nbody,thread_nbody,K*sizeof(value_type2),s[i]>>>
-                    (nbody.get() + i*total_size,
+                    (nbody.get() + i*2*size,
                       in + i * total_size,
                       this->state);
 
     cudaStreamSynchronize(s[i]);
 
-    thrust::transform(nbody+i*total_size,
-                      nbody+2*size+i*total_size,
-                      dxdt.data()+i*total_size,
-                      dxdt.data()+i*total_size,
-                      thrust::plus<value_type>());
-
-    dxdt[2*size+i*total_size] = sub_x + this->state.mu;
-    dxdt[2*size+1+i*total_size] = sub_y - this->state.lambda;
+		value_type sub_x, sub_y;
+		thrust::plus<value_type> op;
+		scan<<<block_other,thread_other,0,s[i]>>>
+					(substrate.get()+i*2*size, size, op);
+		scan<<<block_other,thread_other,0,s[i]>>>
+					(substrate.get()+size+i*2*size, size, op);
+    
+		combine<<<block_other,thread_other,0,s[i]>>>
+					(out+i*total_size, nbody.get()+i*2*size, out+i*total_size, size, op);
+		//thrust::transform(nbody+i*total_size,
+    //                  nbody+2*size+i*total_size,
+    //                  dxdt.data()+i*total_size,
+    //                  dxdt.data()+i*total_size,
+    //                  thrust::plus<value_type>());
+    cudaStreamSynchronize(s[i]);
+	
+		cudaMemcpy(&sub_x,substrate.get()+size+i*2*size-1,sizeof(double),cudaMemcpyDeviceToHost);
+		cudaMemcpy(&sub_y,substrate.get()+2*size+i*2*size-1,sizeof(double),cudaMemcpyDeviceToHost);
+	
+		//sub_x = substrate[size+i*total_size];
+		//sub_y = substrate[2*size+i*total_size];
+    
+		dxdt[2*size+i*total_size] = sub_x + this->mu[i];
+    dxdt[2*size+1+i*total_size] = sub_y - this->lambda[i];
   }
 
   for(int i = 0; i < SIM_COUNT; ++i)

@@ -1,6 +1,6 @@
 {
 	"type":2,
-	"device":0,
+	"device":1,
 
 	"m":1,
 	"n":96,
@@ -12,7 +12,6 @@
 	"lambda":0,
 	"mu":0,
 	"sigma":1,
-	"pressure":1,
 
 	"delta":[0],
 

@@ -18,7 +18,6 @@ struct Value
   struct Visitor;
 
   virtual void accept(Visitor&) const = 0;
-  virtual ~Value() { };
 };
 
 struct Object;
@@ -51,7 +50,8 @@ struct Object : std::map<std::string,Value*>, Value
     for(std::map<std::string,Value*>::iterator it = this->begin();
         it != this->end(); ++it)
     {
-      delete it->second;
+			Value* v = it->second;
+      delete v;
     }
   }
 };
@@ -68,7 +68,8 @@ struct Array : std::vector<Value*>, Value
     for(std::vector<Value*>::iterator it = this->begin();
         it != this->end(); ++it)
     {
-      delete *it;
+			Value* v = *it;
+      delete v;
     }
   }
 };

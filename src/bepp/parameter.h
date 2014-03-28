@@ -17,6 +17,7 @@ struct parameter
   value_type sigma;
   value_type lambda;
   value_type mu;
+	value_type pressure;
 
 	bool have_delta, have_init;
 	value_type* delta;
@@ -163,7 +164,14 @@ struct parameter
       reltol = temp->val;
     }else
       failed = true;
-    
+		
+		if(obj.count("pressure") > 0)
+		{
+			json::Number* temp = as<json::Number>(obj["pressure"]);
+			pressure = temp->val;
+		}else
+			failed = true;
+
 		if(obj.count("delta") > 0)
     {
       json::Array* temp = as<json::Array>(obj["delta"]);
