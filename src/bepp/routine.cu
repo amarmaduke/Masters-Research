@@ -499,7 +499,7 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
           = make_controlled(p.abstol,p.reltol,stepper_type());
 
   value_type dt = 1e-6;
-  double time = 0;
+  double time = 0, p_time = 0;
 
   while(true)
   {
@@ -515,7 +515,20 @@ void equillibriate(parameter& p, json::Object& obj, vector_type& init)
         throw std::overflow_error( error_string );
       }
     }while(result != success);
-    time = 0;
+
+    if(time - p_time > 1)
+    {
+      json::Array* a = new json::Array();
+      for(int i = 0; i < init.size(); ++i)
+      {
+        double x = init[i];
+        a->push_back(new json::Number(x));
+      }
+      std::stringstream ss;
+      ss << "tq" << count;
+      obj[ss.str()] = a;
+      p_time = time;
+    }
 
     vector_type diff(2*size+2);
     thrust::minus<value_type> op;
