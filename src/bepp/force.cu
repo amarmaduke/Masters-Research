@@ -66,7 +66,9 @@ void compute_other( value_type* const out_x,
   value_type len = p.len;
   value_type gamma = p.gamma;
   value_type epsilon = p.epsilon;
-  value_type sigma = p.sigma;
+  value_type epsilon_bottom = p.epsilon_bottom;
+	value_type epsilon_top = p.epsilon_top;
+	value_type sigma = p.sigma;
 	value_type pressure = p.pressure;
   value_type* delta = p.delta;
 
@@ -190,7 +192,7 @@ void compute_other( value_type* const out_x,
     p7 = p4*p2*p1;
     p8 = p7*p1;
     p13 = p8*p4*p1;
-    value_type LJval = -(12.0*epsilon/sigma)*(p13-p7);
+    value_type LJval = -(12.0*epsilon_top/sigma)*(p13-p7);
 
     s_vdW_x = s_vdW_x + LJval*temp_x;
     s_vdW_y = s_vdW_y + LJval*temp_y;
@@ -224,7 +226,7 @@ void compute_other( value_type* const out_x,
     p7 = p4*p2*p1;
     p8 = p7*p1;
     p13 = p8*p4*p1;
-    value_type LJval = -(12.0*epsilon/sigma)*(p13-p7);
+    value_type LJval = -(12.0*epsilon_bottom/sigma)*(p13-p7);
 
     os_vdW_x = os_vdW_x + LJval*temp_x;
     os_vdW_y = os_vdW_y + LJval*temp_y;
@@ -269,15 +271,6 @@ value_type2 lennard_jones(value_type2 v, value_type2 v_,
   value_type p13 = p8*p4*p1;
   value_type LJval = -(12.0*epsilon/sigma)*(p13-p7);
 
-  // Condense j == j_ and (i == i_ or i == i_ + 1 or i == i_ - 1) via two
-  // always positive continuous functions with zeros only at those points.
-  //int s1 = ((idx.y - idx_.y)*(idx.y - idx_.y) - 1)*(idx.y - idx_.y)
-  //         *((idx.y - idx_.y)*(idx.y - idx_.y) - 1)*(idx.y - idx_.y);
-  //int s2 = (idx.x - idx_.x)*(idx.x - idx_.x);
-
-  // Conditional execution instead of branching
-  //int swtch = (s1 + s2 == 0);
-  //int swtch = (abs(idx.y - idx.y) - 1)*(idx.y - idx_.y);
   bool swtch = idx.x == idx_.x
           and (idx.y == idx_.y or idx.y == idx_.y + 1 or idx.y == idx_.y - 1);
 

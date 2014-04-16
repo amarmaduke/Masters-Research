@@ -14,7 +14,9 @@ struct parameter
   value_type len;
   value_type gamma;
   value_type epsilon;
-  value_type sigma;
+  value_type epsilon_bottom;
+	value_type epsilon_top;
+	value_type sigma;
   value_type lambda;
   value_type mu;
 	value_type pressure;
@@ -81,7 +83,21 @@ struct parameter
     }else
       failed = true;
 
-    if(obj.count("sigma") > 0)
+    if(obj.count("epsilon_bottom") > 0)
+    {
+      json::Number* temp = as<json::Number>(obj["epsilon_bottom"]);
+      epsilon_bottom = temp->val;
+    }else
+      failed = true;
+    
+		if(obj.count("epsilon_top") > 0)
+    {
+      json::Number* temp = as<json::Number>(obj["epsilon_top"]);
+      epsilon_top = temp->val;
+    }else
+      failed = true;
+    
+		if(obj.count("sigma") > 0)
     {
       json::Number* temp = as<json::Number>(obj["sigma"]);
       sigma = temp->val;
