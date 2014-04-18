@@ -3,7 +3,7 @@ BoostFix=-DBOOST_NOINLINE='__attribute__ ((noinline))'
 CUDA_Debug = -g -G
 Debug = -g
 CUDA_Opt = -O3 --compiler-options -fno-strict-aliasing
-Opt = -03 -fno-strict-aliasing
+Opt = -O3 -fno-strict-aliasing
 BigBox_BuildDir=/home/marmaduke/Masters-Research/src/build/sunsol/
 BigBox_Dir=/home/marmaduke/Masters-Research/src/bepp/
 Home_BuildDir=/home/owner/Research/Masters-Research/src/build/sunsol/
@@ -17,10 +17,10 @@ release_bigbox: $(BigBox_BuildDir)/force.o $(BigBox_BuildDir)/json.o $(BigBox_Bu
 	nvcc $(BigBox_Dir)/main.cpp $^ $(CUDA_FLAGS) $(CUDA_Opt) -o $(BigBox_Dir)/../sunsol.out
 
 debug_home: $(Home_BuildDir)/force_debug.o $(Home_BuildDir)/json.o $(Home_BuildDir)/json_checker.o
-	g++ $(Home_Dir)/main.cpp $^ $(Debug) $(FLAGS) -o $(Home_Dir)/../sunsol_debug.out
+	$(CXX) $(Home_Dir)/main.cpp $^ $(Debug) $(FLAGS) -o $(Home_Dir)/../sunsol_debug.out
 
 release_home: $(Home_BuildDir)/force.o $(Home_BuildDir)/json.o $(Home_BuildDir)/json_checker.o
-	g++ $(Home_Dir)/main.cpp $^ $(Opt) $(FLAGS) -o $(Home_Dir)/../sunsol.out
+	$(CXX) $(Home_Dir)/main.cpp $^ $(Opt) $(FLAGS) -o $(Home_Dir)/../sunsol.out
 
 force_bbox: $(BigBox_BuildDir)/force_debug.o
 $(BigBox_BuildDir)/force.o:
@@ -32,25 +32,25 @@ $(BigBox_BuildDir)/force_debug.o:
 
 force_home: $(Home_BuildDir)/force_debug.o
 $(Home_BuildDir)/force.o:
-	g++ $(Home_Dir)/serial/force.cpp $(Opt) $(FLAGS) -c -o $@
+	$(CXX) $(Home_Dir)/serial/force.cpp $(Opt) $(FLAGS) -c -o $@
 
 force_home_debug: $(Home_BuildDir)/force_debug.o
 $(Home_BuildDir)/force_debug.o:
-	g++ $(Home_Dir)/serial/force.cpp $(Debug) $(FLAGS) -c -o $@
+	$(CXX) $(Home_Dir)/serial/force.cpp $(Debug) $(FLAGS) -c -o $@
 
 json_bbox: $(BigBox_BuildDir)/json.o $(BigBox_BuildDir)/json_checker.o
 $(BigBox_BuildDir)/json.o:
-	g++ $(BigBox_Dir)/json/json.cpp -c -o $@
+	$(CXX) $(BigBox_Dir)/json/json.cpp -c -o $@
 
 $(BigBox_BuildDir)/json_checker.o:
-	g++ $(BigBox_Dir)/json/JSON_checker.cpp -c -o $@
+	$(CXX) $(BigBox_Dir)/json/JSON_checker.cpp -c -o $@
 
 json_home: $(Home_BuildDir)/json.o $(Home_BuildDir)/json_checker.o
 $(Home_BuildDir)/json.o:
-	g++ $(Home_Dir)/json/json.cpp -c -o $@
+	$(CXX) $(Home_Dir)/json/json.cpp -c -o $@
 
 $(Home_BuildDir)/json_checker.o:
-	g++ $(Home_Dir)/json/JSON_checker.cpp -c -o $@
+	$(CXX) $(Home_Dir)/json/JSON_checker.cpp -c -o $@
 
 clean_home:
 	rm -rf $(Home_BuildDir)/*o

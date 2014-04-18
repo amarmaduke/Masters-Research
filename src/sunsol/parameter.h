@@ -14,10 +14,14 @@ struct parameter
   realtype len;
   realtype gamma;
   realtype epsilon;
+  realtype epsilon_bottom;
+  realtype epsilon_top;
   realtype sigma;
   realtype lambda;
   realtype mu;
   realtype pressure;
+
+  realtype radius;
 
   bool have_delta, have_init;
   realtype* delta;
@@ -82,6 +86,20 @@ struct parameter
     }else
       failed = true;
 
+    if(obj.count("epsilon_top") > 0)
+    {
+      json::Number* temp = as<json::Number>(obj["epsilon_top"]);
+      epsilon_top = temp->val;
+    }else
+      failed = true;
+
+    if(obj.count("epsilon_bottom") > 0)
+    {
+      json::Number* temp = as<json::Number>(obj["epsilon_bottom"]);
+      epsilon_bottom = temp->val;
+    }else
+      failed = true;
+
     if(obj.count("sigma") > 0)
     {
       json::Number* temp = as<json::Number>(obj["sigma"]);
@@ -100,6 +118,13 @@ struct parameter
     {
       json::Number* temp = as<json::Number>(obj["mu"]);
       mu = temp->val;
+    }else
+      failed = true;
+
+    if(obj.count("radius") > 0)
+    {
+      json::Number* temp = as<json::Number>(obj["radius"]);
+      radius = temp->val;
     }else
       failed = true;
 
