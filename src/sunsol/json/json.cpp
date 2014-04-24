@@ -234,6 +234,7 @@ json::Array* json::parse_array(std::istream& in, JSON_checker& jc, int& line)
 
       if(have_value)
       {
+        //std::cout << cur << std::endl;
         array->push_back(temp_value);
         have_value = false;
       }

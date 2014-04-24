@@ -3,104 +3,21 @@
 
 extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
 {
-  N_VScale(ZERO, udot, udot);
-
   force_wrapper& wp = *((force_wrapper*)(user_data));
   parameter params = wp.params;
   int n = params.n, m = params.m, size = n*m;
 
-  N_Vector vtemp = N_VClone(u);
-  N_VLinearSum(1, u, -1, wp.u_ref, vtemp);
-  N_VProd(vtemp, vtemp, vtemp); // Square componentwise
-  realtype max_dist = ZERO;
-  for(int i = 0; i < size; ++i)
-  {
-    realtype x = NV_Ith_S(vtemp, i);
-    realtype y = NV_Ith_S(vtemp, i + size);
-    realtype dist = sqrt(x*x + y*y);
-    max_dist = std::max(max_dist, dist);
-  }
-  // Also check the upper substrate point.
-  realtype sx = NV_Ith_S(vtemp, 2*size);
-  realtype sy = NV_Ith_S(vtemp, 2*size + 1);
-  realtype sdist = sqrt(sx*sx + sy*sy);
-  max_dist = std::max(max_dist, sdist);
-  N_VDestroy(vtemp);
-
-  if(max_dist >= params.radius/2)
-  {
-    N_VAddConst(u, 0, wp.u_ref);
-    generate_nhbd(u, wp.nhbd_fiber, wp.nhbd_partner, wp.mask, params);
-  }
-
   // Moving substrate load
-  NV_Ith_S(udot, 2*size) += params.mu;
-  NV_Ith_S(udot, 2*size+1) -= params.lambda;
+  NV_Ith_S(udot, 2*size) = params.mu;
+  NV_Ith_S(udot, 2*size+1) = -params.lambda;
 
-  // van der Waals fiber-fiber, fiber-substrate
-  int f_idx, p_idx, p_xindex, p_yindex;
-  bool is_lower_substrate = false;
-  realtype xps, yps, dist, temp_x, temp_y;
-  realtype p1, p2, p4, p7, p8, p13, LJval;
-  realtype epsi = params.epsilon;
-  for(int i = 0, b = 0; i < wp.nhbd_fiber.size(); ++i, b+=2)
-  {
-    is_lower_substrate = false;
-    realtype x_f, y_f, x_p, y_p;
-    f_idx = wp.nhbd_fiber[i];
-    p_idx = wp.nhbd_partner[i];
-
-    x_f = NV_Ith_S(u, f_idx);
-    y_f = NV_Ith_S(u, f_idx + size);
-
-    if(wp.mask[b] and wp.mask[b+1]) // Fiber-Fiber
-    {
-      x_p = NV_Ith_S(u, p_idx);
-      y_p = NV_Ith_S(u, p_idx + size);
-      epsi = params.epsilon;
-      p_xindex = p_idx;
-      p_yindex = p_xindex + size;
-    }else if(wp.mask[b] and not wp.mask[b+1]) // Fiber-Upper
-    {
-      x_p = NV_Ith_S(u, 2*size) + p_idx*params.sub_h;
-      y_p = NV_Ith_S(u, 2*size + 1);
-      epsi = params.epsilon_top;
-      p_xindex = 2*size;
-      p_yindex = p_xindex + 1;
-    }else if(not wp.mask[b] and wp.mask[b+1]) // Fiber-Lower
-    {
-      x_p = params.osub + p_idx*params.osub_h;
-      y_p = ZERO;
-      epsi = params.epsilon_bottom;
-      is_lower_substrate = true;
-    }
-
-    xps = x_f - x_p;
-    yps = y_f - y_p;
-    dist = sqrt(xps*xps + yps*yps);
-    temp_x = xps/dist;
-    temp_y = yps/dist;
-
-    p1 = params.sigma/dist;
-    p2 = p1*p1; p4 = p2*p2; p8 = p4*p4;
-    p7 = p4*p2*p1; p13 = p8*p4*p1;
-    LJval = -(RCONST(12)*epsi/params.sigma)*(p13 - p7);
-
-    NV_Ith_S(udot, f_idx) -= LJval*temp_x;
-    NV_Ith_S(udot, f_idx + size) -= LJval*temp_y;
-    if(not is_lower_substrate)
-    {
-      NV_Ith_S(udot, p_xindex) += LJval*temp_x;
-      NV_Ith_S(udot, p_yindex) += LJval*temp_y;
-    }
-  }
-
+  // Fiber-dependent Forces
   realtype total_fiber_force_x, total_fiber_force_y;
   realtype xpp, xp, x, xn, xnn, ypp, yp, y, yn, ynn, lp, l, ln, lnn;
 
-  for(int j = 0; j < m; ++j)
+  for(uint j = 0; j < m; ++j)
   {
-    for(int i = 0; i < n; ++i)
+    for(uint i = 0; i < n; ++i)
     {
       // Setup required points
       int xindex = i + j*n, yindex = xindex + size;
@@ -202,8 +119,74 @@ extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
       total_fiber_force_x = -(bending_x + extensible_x);
       total_fiber_force_y = -(bending_y + extensible_y + vdW_y);
 
-      NV_Ith_S(udot, xindex) += total_fiber_force_x;
-      NV_Ith_S(udot, yindex) += total_fiber_force_y;
+      NV_Ith_S(udot, xindex) = total_fiber_force_x;
+      NV_Ith_S(udot, yindex) = total_fiber_force_y;
+    }
+  }
+
+  // van der Waals fiber-fiber, fiber-substrate
+  int f_idx, p_idx, p_xindex, p_yindex;
+  bool is_lower_substrate = false;
+  realtype xps, yps, dist, temp_x, temp_y;
+  realtype p1, p2, p4, p7, p8, p13, LJval;
+  realtype epsi = params.epsilon, LJ_c = wp.LJ_f2f_c;
+  for(uint i = 0, b = 0; i < wp.nhbd_fiber.size(); ++i, b+=2)
+  {
+    is_lower_substrate = false;
+    realtype x_f, y_f, x_p, y_p;
+    f_idx = wp.nhbd_fiber[i];
+    p_idx = wp.nhbd_partner[i];
+
+    x_f = NV_Ith_S(u, f_idx);
+    y_f = NV_Ith_S(u, f_idx + size);
+
+    if(wp.mask[b] and wp.mask[b+1]) // Fiber-Fiber
+    {
+      x_p = NV_Ith_S(u, p_idx);
+      y_p = NV_Ith_S(u, p_idx + size);
+      epsi = params.epsilon;
+      LJ_c = wp.LJ_f2f_c;
+      p_xindex = p_idx;
+      p_yindex = p_xindex + size;
+    }else if(wp.mask[b] and not wp.mask[b+1]) // Fiber-Upper
+    {
+      x_p = NV_Ith_S(u, 2*size) + p_idx*params.sub_h;
+      y_p = NV_Ith_S(u, 2*size + 1);
+      epsi = params.epsilon_top;
+      LJ_c = wp.LJ_f2u_c;
+      p_xindex = 2*size;
+      p_yindex = p_xindex + 1;
+    }else if(not wp.mask[b] and wp.mask[b+1]) // Fiber-Lower
+    {
+      x_p = params.osub + p_idx*params.osub_h;
+      y_p = ZERO;
+      epsi = params.epsilon_bottom;
+      LJ_c = wp.LJ_f2l_c;
+      is_lower_substrate = true;
+    }
+
+    xps = x_f - x_p;
+    yps = y_f - y_p;
+    dist = sqrt(xps*xps + yps*yps);
+    temp_x = xps/dist;
+    temp_y = yps/dist;
+
+    if(dist < params.rcut)
+    {
+      p1 = params.sigma/dist;
+      p2 = p1*p1; p4 = p2*p2; p8 = p4*p4;
+      p7 = p4*p2*p1; p13 = p8*p4*p1;
+      LJval = -(RCONST(12)*epsi/params.sigma)*(p13 - p7);
+      LJval -= LJ_c;
+    }else
+      LJval = 0;
+
+    NV_Ith_S(udot, f_idx) -= LJval*temp_x;
+    NV_Ith_S(udot, f_idx + size) -= LJval*temp_y;
+    if(not is_lower_substrate)
+    {
+      NV_Ith_S(udot, p_xindex) += LJval*temp_x;
+      NV_Ith_S(udot, p_yindex) += LJval*temp_y;
     }
   }
 
@@ -220,13 +203,13 @@ void generate_nhbd( N_Vector& u,
   nhbd_partner.clear();
   mask.clear();
 
-  realtype r2 = param.radius * param.radius;
+  realtype r2 = param.rmax * param.rmax;
   int size = param.n * param.m;
 
   realtype x1, x2, y1, y2;
-  for(int i = 0; i < size; ++i)
+  for(uint i = 0; i < size; ++i)
   {
-    for(int j = i+1; j < size; ++j)
+    for(uint j = i+1; j < size; ++j)
     {
       int fiber_i = i / param.n;
       int fiber_j = j / param.n;
@@ -253,9 +236,9 @@ void generate_nhbd( N_Vector& u,
     }
   }
 
-  for(int i = 0; i < size; ++i)
+  for(uint i = 0; i < size; ++i)
   {
-    for(int j = 0; j < param.sub_count; ++j)
+    for(uint j = 0; j < param.sub_count; ++j)
     {
       x1 = NV_Ith_S(u, i);
       y1 = NV_Ith_S(u, i + size);
@@ -273,9 +256,9 @@ void generate_nhbd( N_Vector& u,
     }
   }
 
-  for(int i = 0; i < size; ++i)
+  for(uint i = 0; i < size; ++i)
   {
-    for(int j = 0; j < param.osub_count; ++j)
+    for(uint j = 0; j < param.osub_count; ++j)
     {
       x1 = NV_Ith_S(u, i);
       y1 = NV_Ith_S(u, i + size);

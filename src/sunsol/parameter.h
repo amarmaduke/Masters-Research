@@ -21,7 +21,8 @@ struct parameter
   realtype mu;
   realtype pressure;
 
-  realtype radius;
+  realtype rcut;
+  realtype rmax;
 
   bool have_delta, have_init;
   realtype* delta;
@@ -121,10 +122,17 @@ struct parameter
     }else
       failed = true;
 
-    if(obj.count("radius") > 0)
+    if(obj.count("rcut") > 0)
     {
-      json::Number* temp = as<json::Number>(obj["radius"]);
-      radius = temp->val;
+      json::Number* temp = as<json::Number>(obj["rcut"]);
+      rcut = temp->val;
+    }else
+      failed = true;
+
+    if(obj.count("rmax") > 0)
+    {
+      json::Number* temp = as<json::Number>(obj["rmax"]);
+      rmax = temp->val;
     }else
       failed = true;
 
@@ -209,7 +217,7 @@ struct parameter
     {
       json::Array* temp = as<json::Array>(obj["delta"]);
       delta = new realtype[temp->size()];
-      for(int i = 0; i < temp->size(); ++i)
+      for(uint i = 0; i < temp->size(); ++i)
       {
         json::Number* temp2 = as<json::Number>((*temp)[i]);
         delta[i] = temp2->val;
@@ -222,7 +230,7 @@ struct parameter
     {
       json::Array* temp = as<json::Array>(obj["init"]);
       init = new realtype[temp->size()];
-      for(int i = 0; i < temp->size(); ++i)
+      for(uint i = 0; i < temp->size(); ++i)
       {
         json::Number* temp2 = as<json::Number>((*temp)[i]);
         init[i] = temp2->val;
