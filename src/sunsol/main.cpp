@@ -268,7 +268,7 @@ int pulloff_adh_bias(parameter& params, json::Object &obj)
         save_grid(grid, theta, l, m, outcome, sim_index++, t_bcount, t_tcount);
         bcount = 0; tcount = 0;
 
-        if(have_upper and have_lower and abs(upper_bound - lower_bound) < .1)
+        if(have_upper and have_lower and std::abs(upper_bound - lower_bound) < .1)
         {
           found = true;
         }
@@ -384,7 +384,7 @@ int pulloff_profile(parameter& params, json::Object& obj)
 
         save_grid(grid, theta, l, m, outcome, sim_index++, t_bcount, t_tcount);
 
-        if(have_upper and have_lower and abs(upper_bound - lower_bound)
+        if(have_upper and have_lower and std::abs(upper_bound - lower_bound)
                                       /std::min(upper_bound, lower_bound) < .01)
         {
           found = true;
