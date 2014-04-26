@@ -32,6 +32,7 @@ json::Array* GRID_PTR;
 
 int pulloff_profile(parameter& params, json::Object& obj);
 int pulloff_grid(parameter& params, json::Object& obj);
+int pushon_grid(parameter& params, json::Object& obj);
 int pulloff_adh_bias(parameter& params, json::Object &obj);
 int equillibriate(parameter& params, json::Object& obj, int sindex,
                   realtype scount, uint& bot_count, uint& top_count);
@@ -50,6 +51,7 @@ int main()
   OBJ_PTR = &obj;
   json::Number num = *((json::Number*) obj["type"]);
   json::Number device = *((json::Number*) obj["device"]);
+  json::Number save_num = *((json::Number*) obj["save"]);
   int t = num.val;
   //int d = device.val;
 
@@ -67,7 +69,7 @@ int main()
       pulloff_profile(p, obj);
       break;
     case 2:
-    //  pulloff_grid(p, obj);
+      pushon_grid(p, obj);
       break;
     case 3:
       pulloff_adh_bias(p, obj);
@@ -80,7 +82,11 @@ int main()
   std::cout << "Execution time: " << (end - start)/CLOCKS_PER_SEC
             << " seconds." << std::endl;
 
-  std::ofstream File("output.json");
+  std::stringstream ss;
+  ss << save_num.val;
+  std::string file_name(ss.str() + ".json");
+  char* char_name = &file_name[0];
+  std::ofstream File(char_name);
   json::print(File,obj);
 }
 
@@ -107,6 +113,34 @@ void save_grid( json::Array* grid, realtype t, realtype l, realtype m,
   temp->push_back(new json::Number(bot_count));
   temp->push_back(new json::Number(top_count));
   grid->push_back(temp);
+}
+
+int pushon_grid(parameter& params, json::Object& obj)
+{
+  json::Array* grid = new json::Array();
+  GRID_PTR = grid;
+  int sim_index = 0, outcome;
+  uint bcount = 0, tcount = 0;
+
+  for(realtype theta = 0; theta <= 190; theta += 4)
+  {
+    for(realtype magnitude = 10; magnitude > 0; magnitude -= .1)
+    {
+      std::cout << "Trying... magnitude = " << magnitude << std::endl;
+      realtype l = -magnitude*sin(PI*theta/RCONST(180));
+      realtype m = magnitude*cos(PI*theta/RCONST(180));
+
+      params.lambda = l;
+      params.mu = m;
+      bcount = 0; tcount = 0;
+      outcome = equillibriate(params, obj, sim_index, 0, bcount, tcount);
+
+      save_grid(grid, theta, l, m, outcome, sim_index++, bcount, tcount);
+    }
+  }
+
+  obj["grid"] = grid;
+  return 0;
 }
 
 /*
@@ -192,7 +226,7 @@ int pulloff_adh_bias(parameter& params, json::Object &obj)
       have_lower = false;
       int outcome;
       std::cout << "Searching... theta = " << theta << std::endl;
-      magnitude = 1;
+      magnitude = 10;
 
       while(not found)
       {
@@ -218,16 +252,16 @@ int pulloff_adh_bias(parameter& params, json::Object &obj)
           params.mu = m1;
           test1 = equillibriate(params, obj, sim_index, 0, bcount, tcount);
 
-          if(test1 == 0)
-          {
-            save_grid(grid, theta, l1, m1, test1, sim_index++, bcount, tcount);
-            bcount = 0; tcount = 0;
-          }else if(test1 == 1)
+          if(test1 == 1)
           {
             std::cout << "Isolated Pulloff at " << magnitude << std::endl;
-            save_grid(grid, theta, l, m, 2, sim_index++, bcount, tcount);
+            save_grid(grid, theta, l1, m1, test1, sim_index++, bcount, tcount);
             bcount = 0; tcount = 0;
             magnitude = mag1; l = l1; m = m1; outcome = test1;
+          }else if(test1 == 0)
+          {
+            save_grid(grid, theta, l, m, 2, sim_index++, bcount, tcount);
+            bcount = 0; tcount = 0;
           }
         }
 
@@ -318,6 +352,7 @@ int pulloff_profile(parameter& params, json::Object& obj)
         params.lambda = l;
         params.mu = m;
 
+        bcount = 0; tcount = 0;
         outcome = equillibriate(params, obj, sim_index, 0, bcount, tcount);
         uint t_bcount = bcount, t_tcount = tcount;
 
@@ -331,23 +366,23 @@ int pulloff_profile(parameter& params, json::Object& obj)
           realtype m1 = mag1*cos(PI*theta/RCONST(180));
           params.lambda = l1;
           params.mu = m1;
+
+          bcount = 0; tcount = 0;
           test1 = equillibriate(params, obj, sim_index, 0, bcount, tcount);
 
-          if(test1 == 0)
-          {
-            save_grid(grid, theta, l1, m1, test1, sim_index++, bcount, tcount);
-            bcount = 0; tcount = 0;
-          }else if(test1 == 1)
+          if(test1 == 1)
           {
             std::cout << "Isolated Pulloff at " << magnitude << std::endl;
-            save_grid(grid, theta, l, m, 2, sim_index++, bcount, tcount);
-            bcount = 0; tcount = 0;
+            save_grid(grid, theta, l, m, 2, sim_index++, t_bcount, t_tcount);
+            t_bcount = bcount; t_tcount = tcount;
             magnitude = mag1; l = l1; m = m1; outcome = test1;
+          }else if(test1 == 0)
+          {
+            save_grid(grid, theta, l1, m1, test1, sim_index++, bcount, tcount);
           }
         }
 
         save_grid(grid, theta, l, m, outcome, sim_index++, t_bcount, t_tcount);
-        bcount = 0; tcount = 0;
 
         if(have_upper and have_lower and abs(upper_bound - lower_bound)
                                       /std::min(upper_bound, lower_bound) < .01)
@@ -593,10 +628,10 @@ void compute_adhesion(N_Vector v, parameter& p, uint& bot_count,uint& top_count)
       ys = NV_Ith_S(v, 2*size + 1);
 
       realtype dist = sqrt((x - xs)*(x - xs) + (y - ys)*(y - ys));
-      realtype tol = std::pow(2.0, 6)*p.sigma + 1e-6;
+      realtype tol = std::pow(2.0, 1.0/6.0)*p.sigma + 1e-6;
       if(dist <= tol)
       {
-        ++bot_count;
+        ++top_count;
         break;
       }
     }
@@ -613,10 +648,10 @@ void compute_adhesion(N_Vector v, parameter& p, uint& bot_count,uint& top_count)
       ys = ZERO;
 
       realtype dist = sqrt((x - xs)*(x - xs) + (y - ys)*(y - ys));
-      realtype tol = std::pow(2.0, 6)*p.sigma + 1e-6;
+      realtype tol = std::pow(2.0, 1.0/6.0)*p.sigma + 1e-6;
       if(dist <= tol)
       {
-        ++top_count;
+        ++bot_count;
         break;
       }
     }
