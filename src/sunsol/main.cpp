@@ -572,7 +572,7 @@ int equillibriate(parameter& params, json::Object& obj, int sindex,
     adhesion = params.sub_count == 0 ? ZERO : adhesion;
     realtype term_velocity = sqrt(lambda*lambda + mu*mu);
 
-    if(abs(term_velocity - adhesion) < movtol)
+    if(std::abs(term_velocity - adhesion) < movtol)
     {
       if(outcome != 0)
         counter = 0;
