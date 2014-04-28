@@ -569,10 +569,11 @@ int equillibriate(parameter& params, json::Object& obj, int sindex,
     equil = N_VMaxNorm(nv_temp);
 
     realtype adhesion = sqrt(sub_x*sub_x + sub_y*sub_y) / (t - tp);
-    adhesion = params.sub_count == 0 ? ZERO : adhesion;
     realtype term_velocity = sqrt(lambda*lambda + mu*mu);
+    bool consider_topsub = params.sub_count == 0 || term_velocity == 0 ?
+                              false : true;
 
-    if(std::abs(term_velocity - adhesion) < movtol)
+    if(consider_topsub and std::abs(term_velocity - adhesion) < movtol)
     {
       if(outcome != 0)
         counter = 0;
