@@ -6,6 +6,30 @@
 #ifndef PARAMETER_H
 #define PARAMETER_H
 
+#define PROCESS_NUMBER_REQ(X, Y) \
+      if(obj.count((X)) > 0) \
+      { \
+        json::Number* temp = as<json::Number>(obj[(X)]); \
+        (Y) = temp->val; \
+      }else \
+        failed = true
+
+#define PROCESS_NUMBER_OPT(X, Y, Z) \
+      if(obj.count((X)) > 0) \
+      { \
+        json::Number* temp = as<json::Number>(obj[(X)]); \
+        (Y) = temp->val; \
+      }else \
+        (Y) = (Z)
+
+#define PROCESS_BOOL_OPT(X, Y, Z) \
+      if(obj.count((X)) > 0) \
+      { \
+        json::Bool* temp = as<json::Bool>(obj[(X)]); \
+        (Y) = temp->val; \
+      }else \
+        (Y) = (Z)
+
 struct parameter
 {
   int m;
@@ -16,10 +40,16 @@ struct parameter
   realtype epsilon;
   realtype epsilon_bottom;
   realtype epsilon_top;
+  realtype epsilon_subs;
   realtype sigma;
   realtype lambda;
   realtype mu;
   realtype pressure;
+
+  bool f2f_switch;
+  bool f2l_switch;
+  bool f2u_switch;
+  bool s2s_switch;
 
   realtype rcut;
   realtype rmax;
@@ -45,173 +75,37 @@ struct parameter
   {
     bool failed = false;
 
-    if(obj.count("m") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["m"]);
-      m = temp->val;
-    }else
-      failed = true;
+    PROCESS_NUMBER_REQ("m",m);
+    PROCESS_NUMBER_REQ("n",n);
+    PROCESS_NUMBER_REQ("sub_h",sub_h);
+    PROCESS_NUMBER_REQ("sub_x",sub_x);
+    PROCESS_NUMBER_REQ("sub_y",sub_y);
+    PROCESS_NUMBER_REQ("sub_count",sub_count);
+    PROCESS_NUMBER_REQ("osub",osub);
+    PROCESS_NUMBER_REQ("osub_h",osub_h);
+    PROCESS_NUMBER_REQ("osub_count",osub_count);
+    PROCESS_NUMBER_REQ("rcut",rcut);
+    PROCESS_NUMBER_REQ("rmax",rmax);
 
-    if(obj.count("n") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["n"]);
-      n = temp->val;
-    }else
-      failed = true;
+    PROCESS_NUMBER_OPT("beta",beta,ONE);
+    PROCESS_NUMBER_OPT("len",len,ONE);
+    PROCESS_NUMBER_OPT("gamma",gamma,ONE);
+    PROCESS_NUMBER_OPT("epsilon",epsilon,ONE);
+    PROCESS_NUMBER_OPT("epsilon_top",epsilon_top,ONE);
+    PROCESS_NUMBER_OPT("epsilon_bottom",epsilon_bottom,ONE);
+    PROCESS_NUMBER_OPT("epsilon_subs",epsilon_subs,ZERO);
+    PROCESS_NUMBER_OPT("sigma",sigma,ONE);
+    PROCESS_NUMBER_OPT("lambda",lambda,ZERO);
+    PROCESS_NUMBER_OPT("mu",mu,ZERO);
+    PROCESS_NUMBER_OPT("abstol",abstol,RCONST(1e-9));
+    PROCESS_NUMBER_OPT("reltol",reltol,RCONST(1e-9));
+    PROCESS_NUMBER_OPT("movtol",movtol,RCONST(1e-6));
+    PROCESS_NUMBER_OPT("pressure",pressure,ZERO);
 
-    if(obj.count("beta") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["beta"]);
-      beta = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("len") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["len"]);
-      len = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("gamma") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["gamma"]);
-      gamma = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("epsilon") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["epsilon"]);
-      epsilon = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("epsilon_top") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["epsilon_top"]);
-      epsilon_top = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("epsilon_bottom") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["epsilon_bottom"]);
-      epsilon_bottom = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("sigma") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["sigma"]);
-      sigma = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("lambda") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["lambda"]);
-      lambda = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("mu") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["mu"]);
-      mu = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("rcut") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["rcut"]);
-      rcut = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("rmax") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["rmax"]);
-      rmax = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("sub_h") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["sub_h"]);
-      sub_h = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("sub_x") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["sub_x"]);
-      sub_x = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("sub_y") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["sub_y"]);
-      sub_y = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("sub_count") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["sub_count"]);
-      sub_count = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("osub_h") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["osub_h"]);
-      osub_h = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("osub") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["osub"]);
-      osub = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("osub_count") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["osub_count"]);
-      osub_count = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("abstol") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["abstol"]);
-      abstol = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("reltol") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["reltol"]);
-      reltol = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("movtol") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["movtol"]);
-      movtol = temp->val;
-    }else
-      failed = true;
-
-    if(obj.count("pressure") > 0)
-    {
-      json::Number* temp = as<json::Number>(obj["pressure"]);
-      pressure = temp->val;
-    }else
-      failed = true;
+    PROCESS_BOOL_OPT("f2f_switch",f2f_switch,false);
+    PROCESS_BOOL_OPT("f2u_switch",f2u_switch,false);
+    PROCESS_BOOL_OPT("f2l_switch",f2l_switch,false);
+    PROCESS_BOOL_OPT("s2s_switch",s2s_switch,false);
 
     if(obj.count("delta") > 0)
     {

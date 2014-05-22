@@ -36,8 +36,11 @@ int pushon_grid(parameter& params, json::Object& obj);
 int pulloff_adh_bias(parameter& params, json::Object &obj);
 int equillibriate(parameter& params, json::Object& obj, int sindex,
                   realtype scount, uint& bot_count, uint& top_count);
+int equillibriate_fixed(parameter& params, json::Object& obj, int sindex,
+                  realtype scount, uint& bot_count, uint& top_count);
 N_Vector generate_init(parameter& params);
 N_Vector copy_init(parameter& params);
+realtype round_nearest_multiple(realtype t, realtype multiple);
 void save(N_Vector y, json::Object& obj, std::string key, uint nv_size);
 void save_grid( json::Array* grid, realtype t, realtype l, realtype m,
                 int out, int sim, uint bot_count, uint top_count);
@@ -76,7 +79,7 @@ int main()
       break;
     default:
       uint b = 0, t = 0;
-      equillibriate(p, obj, 0, .0000001, b, t);
+      equillibriate_fixed(p, obj, 0, .125, b, t);
   }
   clock_t end = clock();
   std::cout << "Execution time: " << (end - start)/CLOCKS_PER_SEC
@@ -122,12 +125,13 @@ int pushon_grid(parameter& params, json::Object& obj)
   int sim_index = 0, outcome;
   uint bcount = 0, tcount = 0;
 
-  for(realtype theta = 0; theta <= 190; theta += 4)
+  for(realtype theta = 0; theta <= 180; theta += 4)
   {
-    for(realtype magnitude = 10; magnitude > 0; magnitude -= .1)
+    std::cout << "Trying... theta = " << theta << std::endl;
+    for(realtype magnitude = 1; magnitude > 0; magnitude -= .01)
     {
-      std::cout << "Trying... magnitude = " << magnitude << std::endl;
-      realtype l = -magnitude*sin(PI*theta/RCONST(180));
+      //std::cout << "Trying... magnitude = " << magnitude << std::endl;
+      realtype l = magnitude*sin(PI*theta/RCONST(180));
       realtype m = magnitude*cos(PI*theta/RCONST(180));
 
       params.lambda = l;
@@ -142,58 +146,6 @@ int pushon_grid(parameter& params, json::Object& obj)
   obj["grid"] = grid;
   return 0;
 }
-
-/*
-int pulloff_grid(parameter& params, json::Object& obj)
-{
-  json::Array* grid = new json::Array();
-  GRID_PTR = grid;
-  int sim_index = 0, outcome;
-
-  for(realtype l = 0; l >= -150; --l)
-  {
-    for(realtype m = -100; m <= 100; ++m)
-    {
-      std::cout << "lambda = " << l << " mu = " << m << std::endl;
-      params.lambda = l;
-      params.mu = m;
-      outcome = equillibriate(params, obj, sim_index, -1);
-
-      json::Array* temp = new json::Array();
-      temp->push_back(new json::Number(l));
-      temp->push_back(new json::Number(m));
-      temp->push_back(new json::Number(outcome));
-      temp->push_back(new json::Number(sim_index++));
-      grid->push_back(temp);
-    }
-  }
-
-  for(realtype theta = 143; theta <= 144; theta+=.1)
-  {
-    for(realtype magnitude = 63; magnitude <= 72; magnitude+=.1)
-    {
-      std::cout << "theta = " << theta << " magnitude = " << magnitude << std::endl;
-      realtype l = -magnitude*sin(PI*theta/RCONST(180));
-      realtype m = magnitude*cos(PI*theta/RCONST(180));
-
-      params.lambda = l;
-      params.mu = m;
-
-      outcome = equillibriate(params, obj, sim_index, -1);
-      json::Array* temp = new json::Array();
-      temp->push_back(new json::Number(theta));
-      temp->push_back(new json::Number(l));
-      temp->push_back(new json::Number(m));
-      temp->push_back(new json::Number(outcome));
-      temp->push_back(new json::Number(sim_index++));
-      grid->push_back(temp);
-    }
-  }
-
-  obj["grid"] = grid;
-  return 0;
-}
-*/
 
 int pulloff_adh_bias(parameter& params, json::Object &obj)
 {
@@ -613,6 +565,220 @@ int equillibriate(parameter& params, json::Object& obj, int sindex,
   N_VDestroy(nhbd_ref);
   CVodeFree(&cvode_mem);
   return outcome;
+}
+
+int equillibriate_fixed(parameter& params, json::Object& obj, int sindex,
+                  realtype scount, uint& bot_count, uint& top_count)
+{
+  realtype reltol = params.reltol, abstol = params.abstol;
+  realtype movtol = params.movtol;
+  realtype lambda = params.lambda, mu = params.mu;
+  realtype sstep = scount;
+  //realtype magnitude = sqrt(lambda*lambda + mu*mu);
+  //realtype hmax = magnitude / (params.rmax - params.rcut) / RCONST(1.0001);
+  realtype tp = ZERO, t = ZERO, tout = RCONST(8), equil;
+  int flag;
+  uint count = 0;
+  N_Vector y = NULL, nhbd_ref = NULL, y_ref = NULL, nv_temp = NULL;
+  N_Vector nv_save = NULL;
+  void *cvode_mem = NULL;
+
+  uint particle_count = params.n * params.m + 1;
+  uint nv_size = 2*particle_count;
+  uint sub_index = 2 * params.n * params.m;
+  uint size = params.n * params.m;
+
+  if(params.have_init)
+    y = copy_init(params);
+  else
+    y = generate_init(params);
+  y_ref = N_VClone(y);
+  nv_temp = N_VClone(y);
+  nhbd_ref = N_VClone(y);
+  nv_save = N_VClone(y);
+  N_VAddConst(y, ZERO, nhbd_ref);
+
+  force_wrapper Wrapper(params, y);
+
+  // CV_ADAMS, CV_FUNCTIONAL (Adams-Bashforth-Moulton)
+  // CV_BDF, CV_NEWTON (Implicit Backward Difference Formula)
+  cvode_mem = CVodeCreate(CV_BDF, CV_NEWTON);
+
+  flag = CVodeInit(cvode_mem, force, ZERO, y);
+  flag = CVodeSStolerances(cvode_mem, reltol, abstol);
+
+#ifdef CUDA_TARGET
+  // TODO
+#else
+  /*  As of now I see no reason to use anything but the provided Dense solver in
+      a serial setting. van der Waals removes any hope of a banded structure and
+      any spareness will be too dynamic to be worth capturing.
+      The Krylov iteration is however worth exploring.
+  */
+  flag = CVDense(cvode_mem, nv_size);
+#endif
+
+  flag = CVodeSetUserData(cvode_mem, &Wrapper);
+  flag = CVodeSetMaxNumSteps(cvode_mem, -1);
+  flag = CVodeSetMaxConvFails(cvode_mem, 100);
+  flag = CVodeSetMaxStep(cvode_mem, 8);
+
+  //force(RCONST(0), y, y_ref, &Wrapper);
+  //N_VPrint_Serial(y_ref);
+  //assert(false);
+
+
+  std::stringstream ss;
+  ss << "sindex" << sindex << "tq" << count++;
+  save(y, obj, ss.str(), nv_size);
+
+  //clock_t start = clock();
+  int counter = 0, outcome = 2;
+  realtype ts = 0;
+  while(counter < 10)
+  {
+
+    N_VAddConst(y, ZERO, y_ref);
+    tp = t;
+    while(t < tout)
+    {
+      flag = CVode(cvode_mem, tout, y, &t, CV_ONE_STEP);
+      if(flag < 0)
+      {
+        check_CVode_error(flag);
+        outcome = -1;
+        N_VPrint_Serial(y);
+        exit(-1);
+      }
+
+      N_VLinearSum(1, y, -1, nhbd_ref, nv_temp);
+      N_VProd(nv_temp, nv_temp, nv_temp); // Square componentwise
+      realtype max_dist = ZERO, nmax_dist = ZERO;
+      for(int i = 0; i < size; ++i)
+      {
+        realtype tx = NV_Ith_S(nv_temp, i);
+        realtype ty = NV_Ith_S(nv_temp, i + size);
+        realtype dist = sqrt(tx*tx + ty*ty);
+        if(dist >= max_dist)
+        {
+          nmax_dist = max_dist;
+          max_dist = dist;
+        }
+      }
+      // Also check the upper substrate point.
+      realtype tx = NV_Ith_S(nv_temp, 2*size);
+      realtype ty = NV_Ith_S(nv_temp, 2*size + 1);
+      realtype dist = sqrt(tx*tx + ty*ty);
+      if(dist >= max_dist)
+      {
+        nmax_dist = max_dist;
+        max_dist = dist;
+      }
+
+      if(max_dist + nmax_dist >= params.rmax - params.rcut)
+      {
+        N_VAddConst(y, ZERO, nhbd_ref);
+        generate_nhbd(y, Wrapper.nhbd_fiber, Wrapper.nhbd_partner,
+                      Wrapper.mask, params);
+      }
+
+      realtype hu;
+      flag = CVodeGetLastStep(cvode_mem, &hu);
+      scount = round_nearest_multiple(t - hu, sstep);
+      //std::cout << "t - hu: " << (t - hu) << " t: " << t << std::endl;
+      //std::cout << "scount: " << scount << std::endl;
+      while(scount < t and scount > t - hu)
+      {
+        printf("%4.4f < %4.4f < %4.4f\n", t-hu, scount, t);
+        flag = CVodeGetDky(cvode_mem, scount, 0, nv_save);
+        std::stringstream ss1;
+        ss1 << "sindex" << sindex << "tq" << count++;
+        if(flag >= 0)
+          save(nv_save, obj, ss1.str(), nv_size);
+
+        flag = CVodeGetDky(cvode_mem, scount, 1, nv_save);
+        std::stringstream ss2;
+        ss2 << "sindex" << sindex << "td" << count;
+        if(flag >= 0)
+          save(nv_save, obj, ss2.str(), nv_size);
+
+        scount += sstep;
+      }
+    }
+    tout = (t + RCONST(8));
+
+    N_VLinearSum(ONE, y, RCONST(-1), y_ref, nv_temp); // Compute y - y_ref
+
+  #ifdef CUDA_TARGET
+    // TODO
+  #else
+    realtype sub_x = NV_Ith_S(nv_temp, sub_index);
+    realtype sub_y = NV_Ith_S(nv_temp, sub_index+1);
+    NV_Ith_S(nv_temp, sub_index) = 0;
+    NV_Ith_S(nv_temp, sub_index + 1) = 0;
+  #endif
+
+    equil = N_VMaxNorm(nv_temp);
+
+    realtype adhesion = sqrt(sub_x*sub_x + sub_y*sub_y) / (t - tp);
+    realtype term_velocity = sqrt(lambda*lambda + mu*mu);
+    bool consider_topsub = params.sub_count == 0 || term_velocity == 0 ?
+                              false : true;
+
+    if(consider_topsub and std::abs(term_velocity - adhesion) < movtol)
+    {
+      if(outcome != 0)
+        counter = 0;
+      ++counter;
+      outcome = 0;
+    }else if(equil < movtol and adhesion < movtol)
+    {
+      if(outcome != 1)
+        counter = 0;
+      ++counter;
+      outcome = 1;
+    }else
+      counter = 0;
+
+    //std::cout << tp << " " << t << std::endl;
+    //std::cout << tout << " " << equil << " " << adhesion << std::endl;
+  }
+  //clock_t end = clock();
+  //std::cout << "Time: " << (end - start)/CLOCKS_PER_SEC << " seconds. "
+  //  << "Simulation Time: " << (tout - RCONST(8)) << std::endl;
+
+  if(scount >= 0)
+  {
+    std::stringstream ss;
+    ss << "sindex" << sindex << "tq" << count++;
+    save(y, obj, ss.str(), nv_size);
+  }
+
+  compute_adhesion(y, params, bot_count, top_count);
+
+  //std::ofstream File("output.json");
+  //json::print(File,obj);
+
+  N_VDestroy(y);
+  N_VDestroy(y_ref);
+  N_VDestroy(nv_temp);
+  N_VDestroy(nhbd_ref);
+  CVodeFree(&cvode_mem);
+  return outcome;
+}
+
+realtype round_nearest_multiple(realtype t, realtype multiple)
+{
+  if(multiple != 0 and t != 0)
+  {
+    realtype sign = t > ZERO ? ONE : -ONE;
+    t *= sign;
+    t /= multiple;
+    realtype fixed_point = std::ceil(t);
+    t = fixed_point*multiple;
+    t *= sign;
+  }
+  return t;
 }
 
 void compute_adhesion(N_Vector v, parameter& p, uint& bot_count,uint& top_count)

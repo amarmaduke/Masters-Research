@@ -35,13 +35,13 @@ struct force_wrapper
     True, True (or 1, 1) will be a fiber particle,
     True, False (or 1, 0) will be an upper substrate particle,
     False, True (or 0, 1) will be a lower substrate particle,
-    False, False (or 0, 0) is undefined and will cause undefined behavior.
+    False, False (or 0, 0) will be substrate-substrate interaction.
   */
 
   std::vector<int> nhbd_fiber;
   std::vector<int> nhbd_partner;
   std::vector<bool> mask;
-  realtype LJ_f2f_c, LJ_f2l_c, LJ_f2u_c;
+  realtype LJ_f2f_c, LJ_f2l_c, LJ_f2u_c, LJ_s2s_c;
 
   force_wrapper(parameter& p, N_Vector& init)
   : params(p), nhbd_fiber(), nhbd_partner(), mask()
@@ -55,6 +55,7 @@ struct force_wrapper
     LJ_f2u_c = -(RCONST(12)*params.epsilon_top/params.sigma)*(p13 - p7);
     LJ_f2l_c = -(RCONST(12)*params.epsilon_bottom/params.sigma)*(p13 - p7);
     LJ_f2f_c = -(RCONST(12)*params.epsilon/params.sigma)*(p13 - p7);
+    LJ_s2s_c = -(RCONST(12)*params.epsilon_subs/params.sigma)*(p13 - p7);
   }
 };
 

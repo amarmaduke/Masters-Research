@@ -125,7 +125,7 @@ extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
   }
 
   // van der Waals fiber-fiber, fiber-substrate
-  int f_idx, p_idx, p_xindex, p_yindex;
+  int f_idx, p_idx, f_xindex, f_yindex, p_xindex, p_yindex;
   bool is_lower_substrate = false;
   realtype xps, yps, dist, temp_x, temp_y;
   realtype p1, p2, p4, p7, p8, p13, LJval;
@@ -137,32 +137,52 @@ extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
     f_idx = wp.nhbd_fiber[i];
     p_idx = wp.nhbd_partner[i];
 
-    x_f = NV_Ith_S(u, f_idx);
-    y_f = NV_Ith_S(u, f_idx + size);
-
     if(wp.mask[b] and wp.mask[b+1]) // Fiber-Fiber
     {
+      x_f = NV_Ith_S(u, f_idx);
+      y_f = NV_Ith_S(u, f_idx + size);
       x_p = NV_Ith_S(u, p_idx);
       y_p = NV_Ith_S(u, p_idx + size);
       epsi = params.epsilon;
       LJ_c = wp.LJ_f2f_c;
+      f_xindex = f_idx;
+      f_xindex = f_xindex + size;
       p_xindex = p_idx;
       p_yindex = p_xindex + size;
     }else if(wp.mask[b] and not wp.mask[b+1]) // Fiber-Upper
     {
+      x_f = NV_Ith_S(u, f_idx);
+      y_f = NV_Ith_S(u, f_idx + size);
       x_p = NV_Ith_S(u, 2*size) + p_idx*params.sub_h;
       y_p = NV_Ith_S(u, 2*size + 1);
       epsi = params.epsilon_top;
       LJ_c = wp.LJ_f2u_c;
+      f_xindex = f_idx;
+      f_xindex = f_xindex + size;
       p_xindex = 2*size;
       p_yindex = p_xindex + 1;
     }else if(not wp.mask[b] and wp.mask[b+1]) // Fiber-Lower
     {
+      x_f = NV_Ith_S(u, f_idx);
+      y_f = NV_Ith_S(u, f_idx + size);
       x_p = params.osub + p_idx*params.osub_h;
       y_p = ZERO;
       epsi = params.epsilon_bottom;
       LJ_c = wp.LJ_f2l_c;
       is_lower_substrate = true;
+      f_xindex = f_idx;
+      f_xindex = f_xindex + size;
+    }else if(not wp.mask[b] and not wp.mask[b+1]) // Sub-Sub
+    {
+      x_f = NV_Ith_S(u, 2*size) + f_idx*params.sub_h;
+      y_f = NV_Ith_S(u, 2*size + 1);
+      x_p = params.osub + p_idx*params.osub_h;
+      y_p = ZERO;
+      epsi = params.epsilon_subs;
+      LJ_c = wp.LJ_s2s_c;
+      is_lower_substrate = true;
+      f_xindex = 2*size;
+      f_yindex = f_xindex + 1;
     }
 
     xps = x_f - x_p;
@@ -181,8 +201,8 @@ extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
     }else
       LJval = 0;
 
-    NV_Ith_S(udot, f_idx) -= LJval*temp_x;
-    NV_Ith_S(udot, f_idx + size) -= LJval*temp_y;
+    NV_Ith_S(udot, f_xindex) -= LJval*temp_x;
+    NV_Ith_S(udot, f_yindex) -= LJval*temp_y;
     if(not is_lower_substrate)
     {
       NV_Ith_S(udot, p_xindex) += LJval*temp_x;
@@ -207,7 +227,7 @@ void generate_nhbd( N_Vector& u,
   int size = param.n * param.m;
 
   realtype x1, x2, y1, y2;
-  for(uint i = 0; i < size; ++i)
+  for(uint i = 0; i < size and param.f2f_switch; ++i)
   {
     for(uint j = i+1; j < size; ++j)
     {
@@ -236,7 +256,7 @@ void generate_nhbd( N_Vector& u,
     }
   }
 
-  for(uint i = 0; i < size; ++i)
+  for(uint i = 0; i < size and param.f2u_switch; ++i)
   {
     for(uint j = 0; j < param.sub_count; ++j)
     {
@@ -256,7 +276,7 @@ void generate_nhbd( N_Vector& u,
     }
   }
 
-  for(uint i = 0; i < size; ++i)
+  for(uint i = 0; i < size and param.f2l_switch; ++i)
   {
     for(uint j = 0; j < param.osub_count; ++j)
     {
@@ -272,6 +292,26 @@ void generate_nhbd( N_Vector& u,
         nhbd_partner.push_back(j);
         mask.push_back(false);
         mask.push_back(true);
+      }
+    }
+  }
+
+  for(uint i = 0; i < param.sub_count and param.s2s_switch; ++i)
+  {
+    for(uint j = 0; j < param.osub_count; ++j)
+    {
+      x1 = NV_Ith_S(u, 2*size) + i*param.sub_h;
+      y1 = NV_Ith_S(u, 2*size + 1);
+      x2 = param.osub + j*param.osub_h;
+      y2 = ZERO;
+
+      realtype dist2 = (x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2);
+      if(dist2 <= r2)
+      {
+        nhbd_fiber.push_back(i);
+        nhbd_partner.push_back(j);
+        mask.push_back(false);
+        mask.push_back(false);
       }
     }
   }
