@@ -102,9 +102,9 @@ struct parameter
     PROCESS_NUMBER_OPT("movtol",movtol,RCONST(1e-6));
     PROCESS_NUMBER_OPT("pressure",pressure,ZERO);
 
-    PROCESS_BOOL_OPT("f2f_switch",f2f_switch,false);
-    PROCESS_BOOL_OPT("f2u_switch",f2u_switch,false);
-    PROCESS_BOOL_OPT("f2l_switch",f2l_switch,false);
+    PROCESS_BOOL_OPT("f2f_switch",f2f_switch,true);
+    PROCESS_BOOL_OPT("f2u_switch",f2u_switch,true);
+    PROCESS_BOOL_OPT("f2l_switch",f2l_switch,true);
     PROCESS_BOOL_OPT("s2s_switch",s2s_switch,false);
 
     if(obj.count("delta") > 0)

@@ -146,7 +146,7 @@ extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
       epsi = params.epsilon;
       LJ_c = wp.LJ_f2f_c;
       f_xindex = f_idx;
-      f_xindex = f_xindex + size;
+      f_yindex = f_xindex + size;
       p_xindex = p_idx;
       p_yindex = p_xindex + size;
     }else if(wp.mask[b] and not wp.mask[b+1]) // Fiber-Upper
@@ -158,7 +158,7 @@ extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
       epsi = params.epsilon_top;
       LJ_c = wp.LJ_f2u_c;
       f_xindex = f_idx;
-      f_xindex = f_xindex + size;
+      f_yindex = f_xindex + size;
       p_xindex = 2*size;
       p_yindex = p_xindex + 1;
     }else if(not wp.mask[b] and wp.mask[b+1]) // Fiber-Lower
@@ -171,7 +171,7 @@ extern "C" int force(realtype t, N_Vector u, N_Vector udot, void *user_data)
       LJ_c = wp.LJ_f2l_c;
       is_lower_substrate = true;
       f_xindex = f_idx;
-      f_xindex = f_xindex + size;
+      f_yindex = f_xindex + size;
     }else if(not wp.mask[b] and not wp.mask[b+1]) // Sub-Sub
     {
       x_f = NV_Ith_S(u, 2*size) + f_idx*params.sub_h;
