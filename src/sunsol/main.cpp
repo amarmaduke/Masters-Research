@@ -128,7 +128,7 @@ int pushon_grid(parameter& params, json::Object& obj)
   for(realtype theta = 0; theta <= 180; theta += 4)
   {
     std::cout << "Trying... theta = " << theta << std::endl;
-    for(realtype magnitude = 1; magnitude > 0; magnitude -= .01)
+    for(realtype magnitude = 10; magnitude > 0; magnitude -= 1)
     {
       //std::cout << "Trying... magnitude = " << magnitude << std::endl;
       realtype l = magnitude*sin(PI*theta/RCONST(180));
