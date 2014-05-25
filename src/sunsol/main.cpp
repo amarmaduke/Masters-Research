@@ -125,12 +125,37 @@ int pushon_grid(parameter& params, json::Object& obj)
   int sim_index = 0, outcome;
   uint bcount = 0, tcount = 0;
 
-  for(realtype theta = 0; theta <= 180; theta += 4)
+  std::vector< realtype > tr;
+  json::Array* range = as<json::Array>(obj["range"]);
+  for(uint i = 0; i < range->size(); ++i)
+  {
+    json::Number* numtemp = as<json::Number>((*range)[i]);
+    realtype temp = numtemp->val;
+    tr.push_back(temp);
+  }
+
+  std::vector< realtype > mr;
+  json::Array* range2 = as<json::Array>(obj["range2"]);
+  for(uint i = 0; i < range2->size(); ++i)
+  {
+    json::Number* numtemp = as<json::Number>((*range2)[i]);
+    realtype temp = numtemp->val;
+    mr.push_back(temp);
+  }
+
+  if(mr.size() == 0)
+  {
+    mr.push_back(1);
+    mr.push_back(1);
+    mr.push_back(10);
+  }
+
+  for(realtype theta = tr[0]; theta < tr[2]; theta += tr[1])
   {
     std::cout << "Trying... theta = " << theta << std::endl;
-    for(realtype magnitude = 10; magnitude > 0; magnitude -= 1)
+    for(realtype magnitude = mr[0]; magnitude < mr[2]; magnitude += mr[1])
     {
-      //std::cout << "Trying... magnitude = " << magnitude << std::endl;
+      std::cout << "Trying... magnitude = " << magnitude << std::endl;
       realtype l = magnitude*sin(PI*theta/RCONST(180));
       realtype m = magnitude*cos(PI*theta/RCONST(180));
 
