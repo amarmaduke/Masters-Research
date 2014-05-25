@@ -1,11 +1,13 @@
-CUDA_FLAGS = -arch=compute_20 -code=sm_20 -I/home/marmaduke/include/ -L/home/marmaduke/lib
+#CUDA_FLAGS = #-arch=compute_20 -code=sm_20 
+CUDA_FLAGS = -I/home/marmaduke/include/ -L/home/marmaduke/lib -I/usr/local/include -L/usr/local/lib -lsundials_cvode -lsundials_nvecserial -lm
 BoostFix=-DBOOST_NOINLINE='__attribute__ ((noinline))'
 CUDA_Debug = -g -G
 Debug = -g
-CUDA_Opt = -O3 --compiler-options -fno-strict-aliasing
+#CUDA_Opt = -O3 --compiler-options -fno-strict-aliasing
+CUDA_Opt = -O3 -fno-strict-aliasing
 Opt = -O3 -fno-strict-aliasing
 BigBox_BuildDir=/home/marmaduke/Masters-Research/src/build/sunsol/
-BigBox_Dir=/home/marmaduke/Masters-Research/src/bepp/
+BigBox_Dir=/home/marmaduke/Masters-Research/src/sunsol/
 Home_BuildDir=/home/owner/Research/Masters-Research/src/build/sunsol/
 Home_Dir=/home/owner/Research/Masters-Research/src/sunsol/
 AMRL_BuildDir=/home/amarmaduke/Masters-Research/trunk/src/build/sunsol/
@@ -14,12 +16,13 @@ AMRL_Include=/home/amarmaduke/include/
 AMRL_Lib=/home/amarmaduke/lib/
 FLAGS = -I$(Home_Dir) -lsundials_cvode -lsundials_nvecserial -lm
 AMRL_FLAGS = -I$(AMRL_Dir) -I$(AMRL_Include) -L$(AMRL_Lib) -lsundials_cvode -lsundials_nvecserial -lm
+NVCC = g++
 
 debug_bigbox: $(BigBox_BuildDir)/force_debug.o $(BigBox_BuildDir)/json.o $(BigBox_BuildDir)/json_checker.o
-	nvcc $(BigBox_Dir)/main.cpp $^ $(CUDA_FLAGS) $(CUDA_Debug) -o $(BigBox_Dir)/../sunsol_debug.out
+	$(NVCC) $(BigBox_Dir)/main.cpp $^ $(CUDA_FLAGS) $(CUDA_Debug) -o $(BigBox_Dir)/../sunsol_debug.out
 
 release_bigbox: $(BigBox_BuildDir)/force.o $(BigBox_BuildDir)/json.o $(BigBox_BuildDir)/json_checker.o
-	nvcc $(BigBox_Dir)/main.cpp $^ $(CUDA_FLAGS) $(CUDA_Opt) -o $(BigBox_Dir)/../sunsol.out
+	$(NVCC) $(BigBox_Dir)/main.cpp $^ $(CUDA_FLAGS) $(CUDA_Opt) -o $(BigBox_Dir)/../sunsol.out
 
 debug_home: $(Home_BuildDir)/force_debug.o $(Home_BuildDir)/json.o $(Home_BuildDir)/json_checker.o
 	$(CXX) $(Home_Dir)/main.cpp $^ $(Debug) $(FLAGS) -o $(Home_Dir)/../sunsol_debug.out
@@ -35,11 +38,11 @@ release_amrl: $(AMRL_BuildDir)/force.o $(AMRL_BuildDir)/json.o $(AMRL_BuildDir)/
 
 force_bbox: $(BigBox_BuildDir)/force_debug.o
 $(BigBox_BuildDir)/force.o:
-	nvcc $(BigBox_Dir)/cuda/force.cu $(CUDA_FLAGS) $(CUDA_Opt) -c -o $@
+	$(NVCC) $(BigBox_Dir)/serial/force.cpp $(CUDA_FLAGS) $(CUDA_Opt) -c -o $@
 
 force_bbox_debug: $(BigBox_BuildDir)/force_debug.o
 $(BigBox_BuildDir)/force_debug.o:
-	nvcc $(BigBox_Dir)/cuda/force.cu $(CUDA_FLAGS) $(CUDA_Debug) -c -o $@
+	$(NVCC) $(BigBox_Dir)/serial/force.cpp $(CUDA_FLAGS) $(CUDA_Debug) -c -o $@
 
 force_home: $(Home_BuildDir)/force_debug.o
 $(Home_BuildDir)/force.o:
@@ -82,7 +85,7 @@ clean_home:
 	rm -rf $(Home_BuildDir)/*o
 	rm -rf ../sunsol*.out
 
-clean_bbox:
+clean_bigbox:
 	rm -rf $(BigBox_BuildDir)/*o
 	rm -rf ../sunsol*.out
 
