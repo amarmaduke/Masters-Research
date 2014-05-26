@@ -19,7 +19,7 @@
   "sigma":1,
   "pressure":0,
 
-  "delta":[0],
+  "delta":[-20, -10, 0, 10, 20],
 
   "sub_x":-200,
   "sub_y":110,
