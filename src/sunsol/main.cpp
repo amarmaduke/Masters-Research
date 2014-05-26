@@ -79,7 +79,7 @@ int main()
       break;
     default:
       uint b = 0, t = 0;
-      equillibriate_fixed(p, obj, 0, ONE, b, t);
+      equillibriate_fixed(p, obj, 0, RCONST(10000), b, t);
   }
   clock_t end = clock();
   std::cout << "Execution time: " << (end - start)/CLOCKS_PER_SEC
