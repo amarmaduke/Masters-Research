@@ -1,5 +1,5 @@
 {
-  "type":1,
+  "type":0,
   "device":3,
 
   "m":1,
@@ -15,7 +15,7 @@
   "epsilon_bottom":0,
   "epsilon_top":1,
   "lambda":0,
-  "mu":0,
+  "mu":26.8555,
   "sigma":1,
   "pressure":0,
 
@@ -38,5 +38,5 @@
 
   "range":[ 0, 4, 180 ],
 
-  "save":5
+  "save":0
 }

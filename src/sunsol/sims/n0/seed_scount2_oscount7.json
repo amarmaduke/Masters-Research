@@ -1,0 +1,43 @@
+{
+  "type":1,
+  "device":3,
+
+  "m":0,
+  "n":0,
+
+  "rcut":8,
+  "rmax":12,
+
+  "beta":0,
+  "len":0,
+  "gamma":0,
+  "epsilon":0,
+  "epsilon_bottom":0,
+  "epsilon_top":0,
+  "epsilon_subs":1,
+  "lambda":0,
+  "mu":0,
+  "sigma":1,
+  "pressure":0,
+
+  "delta":[0],
+
+  "sub_x":0,
+  "sub_y":1,
+  "sub_h":1,
+  "sub_count":2,
+
+  "osub":-3,
+  "osub_h":1,
+  "osub_count":7,
+
+  "reltol":1e-11,
+  "abstol":1e-11,
+  "movtol":1e-8,
+
+  "init":[-0.5,0.863696],
+
+  "range":[ 0, 1, 180 ],
+
+  "save":0
+}
