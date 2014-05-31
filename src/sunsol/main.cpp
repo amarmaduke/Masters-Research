@@ -33,6 +33,7 @@ json::Array* GRID_PTR;
 int pulloff_profile(parameter& params, json::Object& obj);
 int pulloff_grid(parameter& params, json::Object& obj);
 int pushon_grid(parameter& params, json::Object& obj);
+int free_standing(parameter& params, json::Object& obj);
 int pulloff_adh_bias(parameter& params, json::Object &obj);
 int equillibriate(parameter& params, json::Object& obj, int sindex,
                   realtype scount, uint& bot_count, uint& top_count);
@@ -77,6 +78,9 @@ int main()
     case 3:
       pulloff_adh_bias(p, obj);
       break;
+    case 4:
+      free_standing(p, obj);
+      break;
     default:
       uint b = 0, t = 0;
       equillibriate_fixed(p, obj, 0, RCONST(.5), b, t);
@@ -116,6 +120,58 @@ void save_grid( json::Array* grid, realtype t, realtype l, realtype m,
   temp->push_back(new json::Number(bot_count));
   temp->push_back(new json::Number(top_count));
   grid->push_back(temp);
+}
+
+int free_standing(parameter& params, json::Object& obj)
+{
+  json::Array* grid = new json::Array();
+  GRID_PTR = grid;
+  int sim_index = 0, outcome;
+  uint bcount = 0, tcount = 0;
+
+  std::vector< realtype > r1;
+  json::Array* range = as<json::Array>(obj["range"]);
+  for(uint i = 0; i < range->size(); ++i)
+  {
+    json::Number* numtemp = as<json::Number>((*range)[i]);
+    realtype temp = numtemp->val;
+    r1.push_back(temp);
+  }
+
+  std::vector< realtype > r2;
+  json::Array* range2 = as<json::Array>(obj["range2"]);
+  for(uint i = 0; i < range2->size(); ++i)
+  {
+    json::Number* numtemp = as<json::Number>((*range2)[i]);
+    realtype temp = numtemp->val;
+    r2.push_back(temp);
+  }
+
+  if(r2.size() == 0)
+  {
+    r2.push_back(1);
+    r2.push_back(1);
+    r2.push_back(10);
+  }
+
+  for(realtype i = r1[0]; i < r1[2]; i += r1[1])
+  {
+    std::cout << "Trying... i = " << i << std::endl;
+    for(realtype j = r2[0]; j < r2[2]; j += r2[1])
+    {
+      std::cout << "\tTrying... j = " << j << std::endl;
+
+      params.beta = i;
+      params.epsilon_bottom = j;
+      bcount = 0; tcount = 0;
+      outcome = equillibriate(params, obj, sim_index, 0, bcount, tcount);
+
+      save_grid(grid, i, j, 0, outcome, sim_index++, bcount, tcount);
+    }
+  }
+
+  obj["grid"] = grid;
+  return 0;
 }
 
 int pushon_grid(parameter& params, json::Object& obj)
