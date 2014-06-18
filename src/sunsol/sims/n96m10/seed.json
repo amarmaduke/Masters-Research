@@ -11,15 +11,15 @@
   "beta":10,
   "len":1,
   "gamma":100,
-  "epsilon":1,
-  "epsilon_bottom":1,
+  "epsilon":0.1,
+  "epsilon_bottom":0.1,
   "epsilon_top":1,
   "lambda":0,
   "mu":0,
   "sigma":1,
   "pressure":0,
 
-  "delta":[0],
+  "delta":[10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
 
   "sub_x":-160,
   "sub_y":100,
@@ -1955,7 +1955,7 @@
 95,
 96,
 -160,
-100],
+110],
   "range":[ 0, 4, 180 ],
 
   "save":10
