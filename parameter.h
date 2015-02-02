@@ -71,6 +71,8 @@ struct parameter
   realtype abstol;
   realtype movtol;
 
+  bool save_all;
+
   parameter(json::Object& obj)
   {
     bool failed = false;
@@ -106,6 +108,7 @@ struct parameter
     PROCESS_BOOL_OPT("f2u_switch",f2u_switch,true);
     PROCESS_BOOL_OPT("f2l_switch",f2l_switch,true);
     PROCESS_BOOL_OPT("s2s_switch",s2s_switch,false);
+    PROCESS_BOOL_OPT("save_all",save_all,true);
 
     if(obj.count("delta") > 0)
     {

@@ -29,6 +29,7 @@
 
 json::Object* OBJ_PTR;
 json::Array* GRID_PTR;
+bool save_all = true;
 
 int pulloff_profile(parameter& params, json::Object& obj);
 int pulloff_grid(parameter& params, json::Object& obj);
@@ -66,6 +67,7 @@ int main()
 #endif
 
   parameter p(obj);
+  save_all = p.save_all;
   clock_t start = clock();
   switch(t)
   {
@@ -99,6 +101,8 @@ int main()
 
 void save(N_Vector y, json::Object& obj, std::string key, uint nv_size)
 {
+  if (not save_all)
+    return;
   json::Array* a = new json::Array();
   for(uint i = 0; i < nv_size; ++i)
   {
