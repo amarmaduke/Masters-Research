@@ -68,6 +68,7 @@ int main()
 
   parameter p(obj);
   save_all = p.save_all;
+  realtype save_step = p.save_step;
   clock_t start = clock();
   switch(t)
   {
@@ -85,7 +86,7 @@ int main()
       break;
     default:
       uint b = 0, t = 0;
-      equillibriate_fixed(p, obj, 0, RCONST(.1), b, t);
+      equillibriate_fixed(p, obj, 0, save_step, b, t);
   }
   clock_t end = clock();
   std::cout << "Execution time: " << (end - start)/CLOCKS_PER_SEC

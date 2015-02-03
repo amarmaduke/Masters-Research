@@ -72,6 +72,7 @@ struct parameter
   realtype movtol;
 
   bool save_all;
+  realtype save_step;
 
   parameter(json::Object& obj)
   {
@@ -103,6 +104,7 @@ struct parameter
     PROCESS_NUMBER_OPT("reltol",reltol,RCONST(1e-9));
     PROCESS_NUMBER_OPT("movtol",movtol,RCONST(1e-6));
     PROCESS_NUMBER_OPT("pressure",pressure,ZERO);
+    PROCESS_NUMBER_OPT("save_step",save_step,RCONST(.1));
 
     PROCESS_BOOL_OPT("f2f_switch",f2f_switch,true);
     PROCESS_BOOL_OPT("f2u_switch",f2u_switch,true);
