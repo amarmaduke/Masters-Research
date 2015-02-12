@@ -38,7 +38,7 @@ N = n*m
 stuff = data['grid']
 grid = np.asarray(stuff)
 
-grid[grid[:,1].argsort()] # Wow such sort
+grid = grid[grid[:,0].argsort()] # Wow such sort
 
 K, K1 = np.shape(grid)
 print(K)
