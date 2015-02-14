@@ -7,25 +7,9 @@ import matplotlib.cm as cm
 
 ## Script Inputs
 
-mag_threshold = 200
+mag_threshold = 0
 
 ################################################################################
-
-def make_grayscale_colorlist_inc(N):
-    color_list = []
-    init_val = 0
-    for i in range(N):
-        color_list.append([init_val, init_val, init_val])
-        init_val = min(init_val + 1/(N-1),1)
-    return color_list
-
-def make_grayscale_colorlist_dec(N):
-    color_list = []
-    init_val = 1
-    for i in range(N):
-        color_list.append([init_val, init_val, init_val])
-        init_val = max(init_val - 1/(N-1),0)
-    return color_list
 
 json_raw = sys.stdin.read()
 data = json.loads(json_raw)
@@ -83,9 +67,9 @@ plt.plot(theta_v,M_adhered,'--',color='k')
 plt.plot(theta_v,m_pulloff,color='k')
 plt.plot(theta_v,m_pulloff,color='k')
 
-gray_rolled = make_grayscale_colorlist_dec(N)
-#gray_rolled = np.fliplr(gray_rolled)
-my_cmap = colors.ListedColormap(gray_rolled, name="user_gray",N=N)
+X = []
+Y = []
+C = []
 
 for k in range(K):
     i = grid[k,:]
@@ -93,17 +77,20 @@ for k in range(K):
     mag = np.sqrt(i[1]**2 + i[2]**2)
     #colorList(i[7]+1)
     if i[3] == 1 and mag > mag_threshold:
-        plt.plot(theta,mag,marker='o',markersize=3,color=gray_rolled[int(i[6])-1])
+        X.append(theta);
+        Y.append(mag);
+        C.append(i[6])
     elif i[3] == 2:
-        plt.plot(theta,mag,marker='*',markersize=4,color='k')
+        plt.plot(theta,mag,marker='*',markersize=7,color='k')
+
+plt.scatter(X,Y,12,C,'o','Greys', vmin=0, vmax=96, linewidths=.25)
+
+plt.colorbar()
+plt.axis('tight')
+plt.xlim((0, 180))
 
 ax = plt.gca()
 ax.invert_xaxis()
 
-# Much hack, wow. Fix with Line Collection?
-sm = plt.cm.ScalarMappable(cmap=my_cmap, norm=plt.normalize(vmin=0, vmax=1))
-sm._A = []
-cb = plt.colorbar(sm, ticks=[0, .33, .66, 1])
-cb.ax.set_yticklabels(['0', '32', '64', '96'])
-
+plt.savefig('temp_pull.eps', format='eps', dpi=1200)
 plt.show()
