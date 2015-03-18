@@ -1,0 +1,5 @@
+BBox improvement:
+gs -dNOPAUSE -dBATCH -q -sDEVICE=bbox .
+
+
+NOthing special w.r.t. reference

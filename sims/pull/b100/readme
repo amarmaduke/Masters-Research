@@ -1,0 +1,5 @@
+BBox improvement:
+gs -dNOPAUSE -dBATCH -q -sDEVICE=bbox .
+
+Some strangeness, not sure why
+Symmetry is being lost?

@@ -5,19 +5,23 @@ from matplotlib.collections import Collection
 from matplotlib.artist import allow_rasterization
 import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
+import matplotlib as mpl
+
+mpl.rcParams['axes.linewidth'] = .75
+mpl.rcParams['text.usetex'] = True
 
 class ListCollection(Collection):
-     def __init__(self, collections, **kwargs):
-         Collection.__init__(self, **kwargs)
-         self.set_collections(collections)
-     def set_collections(self, collections):
-         self._collections = collections
-     def get_collections(self):
-         return self._collections
-     @allow_rasterization
-     def draw(self, renderer):
-         for _c in self._collections:
-             _c.draw(renderer)
+    def __init__(self, collections, **kwargs):
+        Collection.__init__(self, **kwargs)
+        self.set_collections(collections)
+    def set_collections(self, collections):
+        self._collections = collections
+    def get_collections(self):
+        return self._collections
+    @allow_rasterization
+    def draw(self, renderer):
+        for _c in self._collections:
+            _c.draw(renderer)
 
 def insert_rasterized_contour_plot(c):
     collections = c.collections
@@ -54,7 +58,7 @@ Z = np.reshape(Z, (shape[0], shape[1]))
 
 levels = range(0, 97, 1)
 
-plt.figure(1, (5.5, 4.25))
+plt.figure(1, (3*8/4, 3*6/4))
 ax = plt.gca()
 # Anti-aliasing rendering bugs, white-lines and artifacts etc
 # In order to avoid that we put redundant information in the
@@ -67,9 +71,9 @@ cs = plt.contourf(X, Y, Z, levels=levels, cmap="Greys")
 insert_rasterized_contour_plot(cs)
 
 plt.xticks([45, 90, 135], fontsize=10)
-plt.xlabel('$\\theta$', fontsize=16)
+plt.xlabel('$\\theta$', fontsize=12)
 plt.yticks([2, 6, 10, 14, 18,  22], fontsize=10)
-plt.ylabel('$\sqrt{\lambda^2 + \mu^2}$', fontsize=16)
+plt.ylabel('$\sqrt{\lambda^2 + \mu^2}$', fontsize=12)
 plt.axis('tight')
 cbar = plt.colorbar(ticks=[0, 16, 32, 48, 64, 80, 96], fraction=.1)
 cbar.solids.set_edgecolor('face')
