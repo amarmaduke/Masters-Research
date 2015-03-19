@@ -9,7 +9,7 @@ from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 ## Script Inputs
 # sindex is for grid files, (t is not important, set it to 0)
 # t is for single simulations with many steps (sindex should be 0)
-sindex, t = 302, 0
+sindex, t = 0, 2
 
 # [x_min, x_max, y_min, y_max]
 view = [-80, 20, -40, 40]
