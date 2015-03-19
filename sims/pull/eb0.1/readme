@@ -1,0 +1,5 @@
+BBox improvement:
+gs -dNOPAUSE -dBATCH -q -sDEVICE=bbox .
+
+Some interesting stuff, interesting shape, right side, first showing of
+isolated pull off (unstable detachment?)

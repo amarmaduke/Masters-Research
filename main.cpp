@@ -30,6 +30,7 @@
 json::Object* OBJ_PTR;
 json::Array* GRID_PTR;
 bool save_all = true;
+realtype tmax;
 
 int pulloff_profile(parameter& params, json::Object& obj);
 int pulloff_grid(parameter& params, json::Object& obj);
@@ -69,6 +70,7 @@ int main()
   parameter p(obj);
   save_all = p.save_all;
   realtype save_step = p.save_step;
+  tmax = p.tmax;
   clock_t start = clock();
   switch(t)
   {
@@ -721,12 +723,12 @@ int equillibriate_fixed(parameter& params, json::Object& obj, int sindex,
   //clock_t start = clock();
   int counter = 0, outcome = 2;
   realtype ts = 0;
-  while(counter < 10)
+  while(counter < 10 and t < tmax)
   {
 
     N_VAddConst(y, ZERO, y_ref);
     tp = t;
-    while(t < tout)
+    while(t < tout and t < tmax)
     {
       flag = CVode(cvode_mem, tout, y, &t, CV_ONE_STEP);
       if(flag < 0)
@@ -782,11 +784,12 @@ int equillibriate_fixed(parameter& params, json::Object& obj, int sindex,
         if(flag >= 0)
           save(nv_save, obj, ss1.str(), nv_size);
 
-        flag = CVodeGetDky(cvode_mem, scount, 1, nv_save);
+        /*flag = CVodeGetDky(cvode_mem, scount, 1, nv_save);
         std::stringstream ss2;
         ss2 << "sindex" << sindex << "td" << count;
         if(flag >= 0)
           save(nv_save, obj, ss2.str(), nv_size);
+        */
 
         scount += sstep;
       }
@@ -838,6 +841,8 @@ int equillibriate_fixed(parameter& params, json::Object& obj, int sindex,
     std::stringstream ss;
     ss << "sindex" << sindex << "tq" << count++;
     save(y, obj, ss.str(), nv_size);
+
+    obj["sindex_count"] = new json::Number(count);
   }
 
   compute_adhesion(y, params, bot_count, top_count);

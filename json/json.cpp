@@ -37,7 +37,10 @@ void json::print(std::ostream& out, Value& obj)
       out << "]";
     }
     void visit(const json::String& obj) { out << obj; }
-    void visit(const json::Number& obj) { out << obj.val; }
+    void visit(const json::Number& obj)
+    {
+      out << std::setprecision(11) << obj.val;
+    }
     void visit(const json::Bool& obj) { out << (obj.val?"true":"false"); }
     void visit(const json::Null& obj) { out << "null"; }
     int tab_level;

@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <limits>
 
 #include "defs.h"
 #include "json/json.h"
@@ -73,6 +74,7 @@ struct parameter
 
   bool save_all;
   realtype save_step;
+  realtype tmax;
 
   parameter(json::Object& obj)
   {
@@ -105,6 +107,7 @@ struct parameter
     PROCESS_NUMBER_OPT("movtol",movtol,RCONST(1e-6));
     PROCESS_NUMBER_OPT("pressure",pressure,ZERO);
     PROCESS_NUMBER_OPT("save_step",save_step,RCONST(.1));
+    PROCESS_NUMBER_OPT("tmax",tmax,std::numeric_limits<realtype>::max());
 
     PROCESS_BOOL_OPT("f2f_switch",f2f_switch,true);
     PROCESS_BOOL_OPT("f2u_switch",f2u_switch,true);

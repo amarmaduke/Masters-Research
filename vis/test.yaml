@@ -1,0 +1,20 @@
+sindex: 0
+t: 0
+
+view: [-10, 190, -80, 80]
+
+marker_size: 0
+
+sub_view1: [-30, 20, 23, 35]
+marker_size1: 4
+zoom1: 4
+zoom1_loc: 1
+connector1_loc1: 2
+connector1_loc2: 3
+
+sub_view2: [80, 130, -2, 15]
+marker_size2: 4
+zoom2: 4
+zoom2_loc: 4
+connector2_loc1: 4
+connector2_loc2: 1
