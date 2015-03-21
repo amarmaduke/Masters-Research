@@ -46,7 +46,8 @@ linestyles = ['-', '--', '-.', ':']
 
 alpha_step = (1 - 0.05)/frames
 
-detach_t = 0
+detach_t = 1000
+'''
 for i in range(0, sindex_count) :
     v = data['sindex0tq'+str(i)]
     attached = False
@@ -65,7 +66,7 @@ for i in range(0, sindex_count) :
     if not attached :
         detach_t = i
         break
-
+'''
 
 counter = 0
 

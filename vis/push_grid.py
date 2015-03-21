@@ -1,5 +1,6 @@
 import sys
 import json
+import math
 import numpy as np
 from matplotlib.collections import Collection
 from matplotlib.artist import allow_rasterization
@@ -7,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import matplotlib as mpl
 
-mpl.rcParams['axes.linewidth'] = .75
+#mpl.rcParams['axes.linewidth'] = .75
 mpl.rcParams['text.usetex'] = True
 
 class ListCollection(Collection):
@@ -23,12 +24,13 @@ class ListCollection(Collection):
         for _c in self._collections:
             _c.draw(renderer)
 
-def insert_rasterized_contour_plot(c):
+def insert_rasterized_contour_plot(c, ax = None):
     collections = c.collections
     for _c in collections:
         _c.remove()
     cc = ListCollection(collections, rasterized=True)
-    ax = plt.gca()
+    if ax is None :
+        ax = plt.gca()
     ax.add_artist(cc)
     return cc
 
@@ -58,31 +60,53 @@ Z = np.reshape(Z, (shape[0], shape[1]))
 
 levels = range(0, 97, 1)
 
-plt.figure(1, (3*8/4, 3*6/4))
-ax = plt.gca()
-# Anti-aliasing rendering bugs, white-lines and artifacts etc
-# In order to avoid that we put redundant information in the
-# figure to "help" the renderer get pixels right
-# Your mileage may vary
-cs = plt.contourf(X, Y, Z, levels=levels, cmap="Greys")
-#plt.contourf(X, Y, Z, levels=levels, cmap="Greys")
-#plt.contourf(X, Y, Z, levels=levels, cmap="Greys")
+mpl.rcParams['figure.figsize'] = 6, 3
 
-insert_rasterized_contour_plot(cs)
+#fig, (ax1, ax2) = plt.subplots(1, 2)
 
-plt.xticks([45, 90, 135], fontsize=10)
-plt.xlabel('$\\theta$', fontsize=12)
-plt.yticks([2, 6, 10, 14, 18,  22], fontsize=10)
-plt.ylabel('$\sqrt{\lambda^2 + \mu^2}$', fontsize=12)
-plt.axis('tight')
-cbar = plt.colorbar(ticks=[0, 16, 32, 48, 64, 80, 96], fraction=.1)
-cbar.solids.set_edgecolor('face')
 
-yticks = ax.yaxis.get_major_ticks()
+l_y = []
+m_x = []
+c_z = []
+
+for i in range(shape[0]) :
+    for j in range(shape[1]) :
+        l_y.append(-Y[i, j]*math.sin(math.pi*X[i, j]/180.0))
+        m_x.append(Y[i, j]*math.cos(math.pi*X[i, j]/180))
+
+
+l_y = np.reshape(l_y, (shape[0], shape[1]))
+m_x = np.reshape(m_x, (shape[0], shape[1]))
+
+fig, (ax1, ax2) = plt.subplots(1, 2)
+cs1 = ax1.contourf(X, Y, Z, levels=levels, cmap='Greys')
+insert_rasterized_contour_plot(cs1, ax1)
+
+ax1.invert_xaxis()
+plt.setp(ax1, xticks=[45, 90, 135], yticks=[2, 6, 10, 14, 18,  22])
+ax1.tick_params(axis='both', which='major', labelsize=10)
+ax1.set_xlabel('$\\theta$', fontsize=12)
+ax1.set_ylabel('$\sqrt{\lambda^2 + \mu^2}$', fontsize=12)
+ax1.axis('tight')
+
+yticks = ax1.yaxis.get_major_ticks()
 yticks[0].tick1On = False
 yticks[0].tick2On = False
 yticks[-1].tick1On = False
 yticks[-1].tick2On = False
+
+cs2 = ax2.contourf(m_x, l_y, Z, levels=levels, cmap='Greys')
+insert_rasterized_contour_plot(cs2, ax2)
+
+ax2.tick_params(axis='both', which='major', labelsize=10)
+ax2.set_xlabel('$\mu$', fontsize=12)
+ax2.set_ylabel('$\lambda$', fontsize=12)
+ax2.axis('tight')
+
+plt.tight_layout()
+
+cbar = fig.colorbar(cs2, ax = [ax1, ax2], ticks=[0, 16, 32, 48, 64, 80, 96], fraction=.1)
+cbar.solids.set_edgecolor('face')
 
 cbar.ax.tick_params(labelsize=10)
 ycticks = cbar.ax.yaxis.get_major_ticks()
@@ -90,9 +114,6 @@ ycticks[0].tick2On = False
 ycticks[-1].tick2On = False
 
 plt.draw()
-
-ax = plt.gca()
-ax.invert_xaxis()
 
 plt.savefig('temp_push.eps', format='eps', dpi=300)
 plt.show()

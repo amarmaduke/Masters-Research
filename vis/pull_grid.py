@@ -1,5 +1,6 @@
 import sys
 import json
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -25,8 +26,6 @@ K, K1 = np.shape(grid)
 print(K)
 
 reflect = 0
-
-plt.figure(1, (3*8/4, 3*6/4))
 
 mag_threshold = 10000000
 theta_p = -1
@@ -66,8 +65,12 @@ for k in range(K) :
     elif i[3] == 0 :
         m = min(magnitude,m)
 
-plt.plot(theta_v,M_adhered,'--',color='k')
-plt.plot(theta_v,m_pulloff,color='k')
+mpl.rcParams['figure.figsize'] = 6, 3
+
+fig, (ax1, ax2) = plt.subplots(1, 2)
+
+ax1.plot(theta_v, M_adhered, '--', color='k')
+ax1.plot(theta_v, m_pulloff, color='k')
 
 X = []
 Y = []
@@ -77,40 +80,54 @@ for k in range(K):
     i = grid[k,:]
     theta = i[0]
     mag = np.sqrt(i[1]**2 + i[2]**2)
-    #colorList(i[7]+1)
     if i[3] == 1 and mag > mag_threshold:
         X.append(theta);
         Y.append(mag);
         C.append(i[6])
     elif i[3] == 2:
-        plt.plot(theta,mag,marker='*',markersize=5,color='k')
+        ax1.plot(theta,mag,marker='*',markersize=5,color='k')
 
+ax1.scatter(X,Y,12,C,'o','Greys', vmin=0, vmax=96, linewidths=.3)
 
-ax = plt.gca()
-plt.scatter(X,Y,12,C,'o','Greys', vmin=0, vmax=96, linewidths=.3)
+l_d = [-m_pulloff[k]*math.sin(math.pi*theta_v[k]/180) for k in range(len(theta_v))]
+m_d = [m_pulloff[k]*math.cos(math.pi*theta_v[k]/180) for k in range(len(theta_v))]
+l_a = [-M_adhered[k]*math.sin(math.pi*theta_v[k]/180) for k in range(len(theta_v))]
+m_a = [M_adhered[k]*math.cos(math.pi*theta_v[k]/180) for k in range(len(theta_v))]
+l_ = [-Y[k]*math.sin(math.pi*X[k]/180) for k in range(len(X))]
+m_ = [Y[k]*math.cos(math.pi*X[k]/180) for k in range(len(X))]
+ 
+ax2.plot(m_a, l_a, '--', color='k')
+ax2.plot(m_d, l_d, color='k')
+s1 = ax2.scatter(m_, l_, 12, C, 'o', 'Greys', vmin=0, vmax=96, linewidths=.3)
+ax2.axis('tight')
 
-plt.xticks([0, 45, 90, 135, 180], fontsize=10)
-plt.xlabel('$\\theta$', fontsize=12)
-plt.yticks(fontsize=10)
-plt.ylabel('$\sqrt{\lambda^2 + \mu^2}$', fontsize=12)
-plt.axis('tight')
-cbar = plt.colorbar(ticks=[0, 16, 32, 48, 64, 80, 96], fraction=.1)
+ax1.invert_xaxis()
+ax1.tick_params(axis='both', which='major', labelsize=10)
+ax1.set_xticks([0, 45, 90, 135, 180])
+ax1.set_xlabel('$\\theta$', fontsize=12)
+ax1.set_ylabel('$\sqrt{\lambda^2 + \mu^2}$', fontsize=12)
+ax1.axis('tight')
+ax1.set_xlim((0, 180))
+
+ax2.tick_params(axis='both', which='major', labelsize=10)
+ax2.set_xlabel('$\mu$', fontsize=12)
+ax2.set_ylabel('$\lambda$', fontsize=12)
+
+plt.tight_layout()
+
+xticks = ax1.xaxis.get_major_ticks()
+xticks[0].tick1On = False
+xticks[0].tick2On = False
+xticks[-1].tick1On = False
+xticks[-1].tick2On = False
+
+cbar = fig.colorbar(s1, ax=[ax1, ax2], ticks=[0, 16, 32, 48, 64, 80, 96], fraction=.1)
 cbar.solids.set_edgecolor('face')
 
 cbar.ax.tick_params(labelsize=10)
 ycticks = cbar.ax.yaxis.get_major_ticks()
 ycticks[0].tick2On = False
 ycticks[-1].tick2On = False
-plt.xlim((0, 180))
-
-xticks = ax.xaxis.get_major_ticks()
-xticks[0].tick1On = False
-xticks[0].tick2On = False
-xticks[-1].tick1On = False
-xticks[-1].tick2On = False
-
-ax = plt.gca()
-ax.invert_xaxis()
 
 plt.savefig('temp_pull.eps', format='eps', dpi=300)
 plt.show()
