@@ -6,11 +6,17 @@ import matplotlib.pyplot as plt
 from  matplotlib.animation import FuncAnimation
 from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+import matplotlib as mpl
+
+mpl.rcParams['axes.linewidth'] = .75
+mpl.rcParams['text.usetex'] = True
+
+lw = .4
 
 ## Script Inputs
 view = [-25, 150, -1, 99]
 
-path = '/home/owner/dev/Masters-Research/sims/n96m10/runs/et0.1'
+path = '/home/owner/dev/Masters-Research/sims/many/runs/reference/'
 data = {}
 for dir_entry in os.listdir(path) :
     dir_entry_path = os.path.join(path, dir_entry)
@@ -56,7 +62,7 @@ for d in data :
     ax.set_ylim(view[2], view[3])
 
     if mu == 0 :
-        plt.ylabel('$\lambda =$ %d' % lamb, fontsize=12)
+        plt.ylabel('$\lambda = %d$' % lamb, fontsize=12)
     if lamb == 25 :
         plt.xlabel('$\mu = %d$' % mu, fontsize=12)
 
@@ -67,7 +73,7 @@ for d in data :
         x2, y2 = delta[j], 0
         for i in range(n) :
             x1, y1 = a[i + j*n], a[i + j*n + N]
-            ax.plot([x1, x2], [y1, y2], color='k')
+            ax.plot([x1, x2], [y1, y2], color='k', linewidth=lw)
             x2, y2 = x1, y1
 
     top_substrate_step = json_data['sub_h']
@@ -79,13 +85,13 @@ for d in data :
     x2, y2 = a[2*N], a[2*N + 1]
     for j in range(top_substrate_count) :
         x1, y1 = x2 + top_substrate_step, y2
-        ax.plot([x1, x2], [y1, y2], color='k')
+        ax.plot([x1, x2], [y1, y2], color='k', linewidth=lw)
         x2, y2 = x1, y1
 
     x2, y2 = bottom_substrate_x, 0
     for j in range(bottom_substrate_count) :
         x1, y1 = x2 + bottom_substrate_step, y2
-        ax.plot([x1, x2], [y1, y2], color='k')
+        ax.plot([x1, x2], [y1, y2], color='k', linewidth=lw)
         x2, y2 = x1, y1
 
     c = c + 1

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import matplotlib as mpl
 
-#mpl.rcParams['axes.linewidth'] = .75
+mpl.rcParams['axes.linewidth'] = .75
 mpl.rcParams['text.usetex'] = True
 
 class ListCollection(Collection):
@@ -60,7 +60,7 @@ Z = np.reshape(Z, (shape[0], shape[1]))
 
 levels = range(0, 97, 1)
 
-mpl.rcParams['figure.figsize'] = 6, 3
+mpl.rcParams['figure.figsize'] = 6.25, 3
 
 #fig, (ax1, ax2) = plt.subplots(1, 2)
 
@@ -71,7 +71,7 @@ c_z = []
 
 for i in range(shape[0]) :
     for j in range(shape[1]) :
-        l_y.append(-Y[i, j]*math.sin(math.pi*X[i, j]/180.0))
+        l_y.append(Y[i, j]*math.sin(math.pi*X[i, j]/180.0))
         m_x.append(Y[i, j]*math.cos(math.pi*X[i, j]/180))
 
 

@@ -1,9 +1,9 @@
 import math
 
 # x
-theta = 88
+theta = 168
 # y
-mag = 471
+mag = 17.5
 
 l = -mag*math.sin(math.pi*theta/180)
 m = mag*math.cos(math.pi*theta/180)

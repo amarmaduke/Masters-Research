@@ -32,7 +32,7 @@ view = [-96, 20, -2, 2]
 
 shape = [4, 3]
 
-pbegin = 3
+pbegin = 0
 pstep = 1
 
 ################################################################################
@@ -46,7 +46,7 @@ linestyles = ['-', '--', '-.', ':']
 
 alpha_step = (1 - 0.05)/frames
 
-detach_t = 1000
+detach_t = 0
 '''
 for i in range(0, sindex_count) :
     v = data['sindex0tq'+str(i)]
@@ -147,10 +147,12 @@ for i in range(pbegin, pend) :
     counter = counter + 1
 
 a, b, counter = 0, 0, 0
-for i in range(0, detach_t, 5) :
-#for i in range(int(5.0/tstep), detach_t) :
+#for i in range(0, detach_t, 500) :
+time1, time2, time3 = int(0.0/tstep), int(1400.0/tstep), int(200/tstep)
+for i in range(time1, time2, time3) :
 #for i in range(detach_t-100, detach_t, 1) :
-    g = 1 - 4*counter/(detach_t)
+    #g = 1 - counter/(detach_t)
+    g = 1 - time3*counter/(time2 - time1)
     v = data['sindex0tq'+str(i)]
     attached = False
     d = []

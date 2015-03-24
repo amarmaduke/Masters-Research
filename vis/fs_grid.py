@@ -52,7 +52,7 @@ Z = np.reshape(Z, (100, 100))
 
 levels = range(0, 97, 1)
 
-plt.figure(1, (3*8/4, 3*6/4))
+plt.figure(1, (3.5, 3))
 ax = plt.gca()
 cs = plt.contourf(X, Y, Z, levels=levels, cmap="Greys")
 
@@ -63,14 +63,19 @@ plt.xlabel('$\\beta$', fontsize=12)
 plt.yticks([2, 4, 6, 8, 10], fontsize=10)
 plt.ylabel('$\\varepsilon_-$', fontsize=12)
 plt.axis('tight')
+
+plt.tight_layout()
+
 cbar = plt.colorbar(ticks=[0, 16, 32, 48, 64, 80, 96], fraction=.1)
 cbar.solids.set_edgecolor('face')
 
 yticks = ax.yaxis.get_major_ticks()
-yticks[0].tick1On = False
-yticks[0].tick2On = False
 yticks[-1].tick1On = False
 yticks[-1].tick2On = False
+
+xticks = ax.xaxis.get_major_ticks()
+xticks[-1].tick1On = False
+xticks[-1].tick2On = False
 
 cbar.ax.tick_params(labelsize=10)
 ycticks = cbar.ax.yaxis.get_major_ticks()

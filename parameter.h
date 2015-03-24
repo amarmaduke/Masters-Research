@@ -73,6 +73,7 @@ struct parameter
   realtype movtol;
 
   bool save_all;
+  int save;
   realtype save_step;
   realtype tmax;
 
@@ -108,6 +109,7 @@ struct parameter
     PROCESS_NUMBER_OPT("pressure",pressure,ZERO);
     PROCESS_NUMBER_OPT("save_step",save_step,RCONST(.1));
     PROCESS_NUMBER_OPT("tmax",tmax,std::numeric_limits<realtype>::max());
+    PROCESS_NUMBER_OPT("save",save,0);
 
     PROCESS_BOOL_OPT("f2f_switch",f2f_switch,true);
     PROCESS_BOOL_OPT("f2u_switch",f2u_switch,true);

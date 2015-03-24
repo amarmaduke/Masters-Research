@@ -65,7 +65,7 @@ for k in range(K) :
     elif i[3] == 0 :
         m = min(magnitude,m)
 
-mpl.rcParams['figure.figsize'] = 6, 3
+mpl.rcParams['figure.figsize'] = 6.25, 3
 
 fig, (ax1, ax2) = plt.subplots(1, 2)
 
@@ -86,8 +86,9 @@ for k in range(K):
         C.append(i[6])
     elif i[3] == 2:
         ax1.plot(theta,mag,marker='*',markersize=5,color='k')
+        ax2.plot(mag*math.cos(math.pi*theta/180), -mag*math.sin(math.pi*theta/180), marker='*', markersize=7, color='k')
 
-ax1.scatter(X,Y,12,C,'o','Greys', vmin=0, vmax=96, linewidths=.3)
+ax1.scatter(X,Y,8,C,'o','Greys', vmin=0, vmax=96, linewidths=.3)
 
 l_d = [-m_pulloff[k]*math.sin(math.pi*theta_v[k]/180) for k in range(len(theta_v))]
 m_d = [m_pulloff[k]*math.cos(math.pi*theta_v[k]/180) for k in range(len(theta_v))]
@@ -95,19 +96,20 @@ l_a = [-M_adhered[k]*math.sin(math.pi*theta_v[k]/180) for k in range(len(theta_v
 m_a = [M_adhered[k]*math.cos(math.pi*theta_v[k]/180) for k in range(len(theta_v))]
 l_ = [-Y[k]*math.sin(math.pi*X[k]/180) for k in range(len(X))]
 m_ = [Y[k]*math.cos(math.pi*X[k]/180) for k in range(len(X))]
- 
+
 ax2.plot(m_a, l_a, '--', color='k')
 ax2.plot(m_d, l_d, color='k')
-s1 = ax2.scatter(m_, l_, 12, C, 'o', 'Greys', vmin=0, vmax=96, linewidths=.3)
-ax2.axis('tight')
+s1 = ax2.scatter(m_, l_, 8, C, 'o', 'Greys', vmin=0, vmax=96, linewidths=.3)
+v = ax2.axis('tight')
 
-ax1.invert_xaxis()
+
+plt.setp(ax1, xticks=[0, 45, 90, 135, 180])
 ax1.tick_params(axis='both', which='major', labelsize=10)
-ax1.set_xticks([0, 45, 90, 135, 180])
 ax1.set_xlabel('$\\theta$', fontsize=12)
 ax1.set_ylabel('$\sqrt{\lambda^2 + \mu^2}$', fontsize=12)
-ax1.axis('tight')
-ax1.set_xlim((0, 180))
+v = ax1.axis('tight')
+ax1.axis([0, 180, v[2], v[3]])
+ax1.invert_xaxis()
 
 ax2.tick_params(axis='both', which='major', labelsize=10)
 ax2.set_xlabel('$\mu$', fontsize=12)

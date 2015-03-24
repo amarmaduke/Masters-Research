@@ -57,7 +57,6 @@ int main()
   OBJ_PTR = &obj;
   json::Number num = *((json::Number*) obj["type"]);
   json::Number device = *((json::Number*) obj["device"]);
-  json::Number save_num = *((json::Number*) obj["save"]);
   int t = num.val;
   //int d = device.val;
 
@@ -68,6 +67,7 @@ int main()
 #endif
 
   parameter p(obj);
+  int save_num = p.save;
   save_all = p.save_all;
   realtype save_step = p.save_step;
   tmax = p.tmax;
@@ -95,7 +95,7 @@ int main()
             << " seconds." << std::endl;
 
   std::stringstream ss;
-  ss << save_num.val;
+  ss << save_num;
   std::string file_name(ss.str() + ".json");
   char* char_name = &file_name[0];
   std::ofstream File(char_name);
