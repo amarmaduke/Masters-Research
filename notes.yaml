@@ -1,0 +1,73 @@
+ref:
+   t0 M229:
+      The fiber moves rigidly to the right and up slightly, this is the
+      "leeway" at the root. Once this leeway is exhausted the fiber starts to
+      oscillate in uniform (no propogating waves). Then the substrate detaches
+      pulling the fiber up off the bottom substrate to its maximum height, then
+      the fiber readjusts the the bottom substrate with propogating waves.
+   t8 M220:
+      Story is qualitatively the same. Waves seem different. Less spikey, small
+      amplitude intermediate waves. |..|..| instead of | | | |
+   t24 M212:
+   t44:
+   t76:
+      Same idea, move up and to the right, first. Then oscillate everything
+      together as the substrate moves to the right, waves have a smaller
+      amplitude. Prior to detaching there are propogating waves as well
+   t88 M471:
+      There are no waves in the detachment, the fiber moves up and to the right,
+      the substrate detaches, and it relaxes back down to roughly its same
+      position. This implies there is a span of angles were either the wave mode
+      changes or immediately changes (at least within 8 degrees) So it would
+      seem twitchy as is.
+   t132:
+      The same kind of wave behavior except the particles move to the left
+      instead of to the right. The waves are modulated. (Particle still go up)
+   t160:
+      Same idea as 132, the modulated waves are "more modulated" i.e. longer
+      full periods
+   t180:
+      Same story; different waves
+
+eb0.1:
+   t0:
+      some crazy propogating waves...
+
+varying bending:
+   right local minimas magnitude is lower as beta increases
+   left local minima magnitude is higher as beta increases
+   More asymetric with large beta
+   The peak maximum reduces with increasing beta
+
+varying gamma:
+   local minimums are swapped. (right is lower in ref, higher in 1000 gamma)
+   maximum is reduced (not signficant)
+
+varying eps top / bottom + fiber:
+   decrease in magnitude of both top and bottom reduce the magnitude required
+   for all cases by an equivalent order of magnitude (linear dependence?)
+
+   with e = 1 and et = .1 eb = .1 the asymmetry is stronger betweeen minimums,
+   with e = .1 the symmetry is stronger
+
+   The reduction in magnitude isnt totally absolute. Its close, but a little
+   bit extra is lost in the reduced eps
+
+varying eps top (to 10):
+   all magnitudes have increased, the symmetry is more pronounced at minimums
+
+   strange shape changes as you approach the maximum (?)
+
+using pressure:
+   the general shape is similar but the edge cases are a lot different (flatten)
+   the minimum magnitudes are signfianctly less, (~an order of magnitude)
+   at low pressure there is low symmetry, right minimum requires more magnitude
+   than left. With pressure increase the symmetry gets closer and both magnitudes
+   increase for each minimum
+
+varying eps bottom (.1, .01, 0):
+   The changes are pretty dramatic as we reduce eps bottom, doesnt seem to be
+   any obvious motifs. However the eb0.1 case does have the isolated pulloff
+
+   et10 and eb0.1 are similar in the shape
+

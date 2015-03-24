@@ -1,0 +1,58 @@
+ref:
+   1. l5 l10:
+      Completely flat, the entirely black region (as expected)
+   2. l14 m10:
+      Moving from the black region towards the white region, (nearer the top)
+      we get one small fold
+   3. l15.5 m6:
+      Moving further into the white area (still nearer the top) we get more
+      smaller folds (2 folds this time)
+   4. l19 m0.5:
+      Into the white entirely, near the top, many folds on top of each other
+
+   5. l9.6 m4.2:
+      The grey region like 2. and 3. except closer to smaller magnitudes
+      there are two folds
+   6. l5.9 m0.1:
+      In the white region near the bottom like 4. two folds that are nice and
+      cyclic.
+
+   7. l17 m11:
+      Special case of the black region near the top, one large loop.
+
+   1. -> 2. -> 3. -> 4.:
+      moving from teh black region to the white reigon one step at a time near
+      the top
+
+   5. -> 6.:
+      Moving from black to white near the bottom instead (really just grey 5.)
+      and white (6.) regions
+
+b100:
+   The sections are similar to ref. Black is the exact same. Grey regions are
+   similiar except the loops are stronger as you might expect.
+   1. l14 m1.5:
+      Good example of a grey region
+   2. l19 m0:
+      is like ref 6. (white region near the top)
+   3. l4.6 m0.65:
+      is like ref 7. (black line near the bottom)
+
+b1000:
+   1. l14 m5:
+      nice example
+   2. l20 m0:
+      the white region
+
+eb0.1:
+   1. l14 m7:
+      Similar to ref 2. (one short loop, use it as an example)
+   2. l16 m0:
+      (dont use) Similar to other directly pushing down in all cases.
+   3. l20.5 m3.5:
+      Use as an example, nifty little thing
+   4. l6.25 m0.5:
+      (dont use) Long folds over top each other like ref 5.
+
+eb0.1_et0.1:
+

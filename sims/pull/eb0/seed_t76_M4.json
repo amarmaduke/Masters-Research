@@ -30,5 +30,5 @@
    "sub_x":-150,
    "sub_y":1,
    "type":0,
-   "save_step":0.01
+   "save_step":1000
 }
