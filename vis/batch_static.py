@@ -14,7 +14,8 @@ mpl.rcParams['text.usetex'] = True
 lw = .4
 
 ## Script Inputs
-view = [-25, 150, -1, 99]
+#view = [-25, 150, -1, 50]
+view = [-25, 150, -1, 20]
 
 path = '/home/owner/dev/Masters-Research/sims/many/runs/reference/'
 data = {}
@@ -27,7 +28,8 @@ for dir_entry in os.listdir(path) :
 f, axarray = plt.subplots(3, 3)
 c = 1
 
-f.set_size_inches(6,5,forward=True)
+f.set_size_inches(7,4,forward=True) # landscape
+# f.set_size_inches(6,5,forward=True)
 
 for d in data :
     json_data = json.loads(data[d])
@@ -57,7 +59,7 @@ for d in data :
     j = int(mu/5) + 1
     ax = plt.subplot(3, 3, 3*i + j)
 
-    ax.set_aspect('equal',adjustable='box')
+    #ax.set_aspect('equal',adjustable='box')
     ax.set_xlim(view[0], view[1])
     ax.set_ylim(view[2], view[3])
 
@@ -98,6 +100,6 @@ for d in data :
 
 plt.tight_layout()
 plt.draw()
-plt.savefig('temp.eps', format='eps', dpi=1200)
+plt.savefig('temp.eps', format='eps', dpi=300)
 plt.show()
 

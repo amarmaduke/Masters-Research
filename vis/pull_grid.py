@@ -85,8 +85,8 @@ for k in range(K):
         Y.append(mag);
         C.append(i[6])
     elif i[3] == 2:
-        ax1.plot(theta,mag,marker='*',markersize=5,color='k')
-        ax2.plot(mag*math.cos(math.pi*theta/180), -mag*math.sin(math.pi*theta/180), marker='*', markersize=7, color='k')
+        ax1.plot(theta,mag,marker='*',markersize=5,markerfacecolor='w', markeredgecolor='k', markeredgewidth=.75)
+        ax2.plot(mag*math.cos(math.pi*theta/180), -mag*math.sin(math.pi*theta/180), marker='*', markersize=5, markerfacecolor='w', markeredgecolor='k', markeredgewidth=.75)
 
 ax1.scatter(X,Y,8,C,'o','Greys', vmin=0, vmax=96, linewidths=.3)
 

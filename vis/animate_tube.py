@@ -23,7 +23,7 @@ def gen_lines(count, data) :
     circles = np.zeros((F))
     slines = np.zeros((S, 2, count))
     blines = np.zeros((bS, 2))
-    for c in range(count) :
+    for c in range(0, count) :
         index = 'sindex%dtq%d' % (0, c)
         stuff = data[index]
         a = np.asarray(stuff)
@@ -106,7 +106,7 @@ def animate(i) :
     s.set_data(sthisx, sthisy)
     return l, s,
 
-#ani = animation.FuncAnimation(fig, animate, sindex_count, interval=1, blit=True, init_func=init)
+ani = animation.FuncAnimation(fig, animate, sindex_count, interval=1000, blit=True, init_func=init)
 
 '''
     The animation plots are made with the small scripts below and manually
@@ -116,7 +116,7 @@ g1 = (.6, .6, .6)
 g2 = (.4, .4, .4)
 g3 = (0, 0, 0)
 
-#'''
+'''
 # eb0.1/seed_t72_M38.5
 fig.set_size_inches(3.25, 2.75,forward=True)
 v = [-13, 1, -1, 15]
