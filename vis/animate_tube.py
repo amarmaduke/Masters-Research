@@ -90,13 +90,18 @@ l, s, = plt.plot([], [], 'ok-', [], [], 'ok-')
 plt.xlim((-100, 100))
 plt.ylim((0, 100))
 
+plt.xlim((-13, 1))
+plt.ylim((-1, 15))
+
+plt.xlim((-60, 0))
+plt.ylim((.75, 1.15))
+
 def init() :
     l.set_data([], [])
     s.set_data([], [])
     return l, s,
 
 def animate(i) :
-    print(i)
     thisx = lines[0:96, 0, i]
     thisy = lines[0:96, 1, i]
     sthisx = slines[0:S, 0, i]
@@ -106,7 +111,14 @@ def animate(i) :
     s.set_data(sthisx, sthisy)
     return l, s,
 
-ani = animation.FuncAnimation(fig, animate, sindex_count, interval=1000, blit=True, init_func=init)
+frame_list = range(4000, 7000, 5)
+
+Writer = animation.writers['ffmpeg']
+writer = Writer(fps=30, metadata=dict(author='Andrew Marmaduke'), bitrate=1800)
+
+ani = animation.FuncAnimation(fig, animate, frames=frame_list, interval=20, blit=True, init_func=init)
+
+ani.save('test.mp4', bitrate=1800)
 
 '''
     The animation plots are made with the small scripts below and manually

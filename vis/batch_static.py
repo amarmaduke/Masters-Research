@@ -11,7 +11,7 @@ import matplotlib as mpl
 mpl.rcParams['axes.linewidth'] = .75
 mpl.rcParams['text.usetex'] = True
 
-lw = .4
+lw = .6
 
 ## Script Inputs
 #view = [-25, 150, -1, 50]
@@ -28,8 +28,8 @@ for dir_entry in os.listdir(path) :
 f, axarray = plt.subplots(3, 3)
 c = 1
 
-f.set_size_inches(7,4,forward=True) # landscape
-# f.set_size_inches(6,5,forward=True)
+# f.set_size_inches(7,4,forward=True) # landscape
+f.set_size_inches(6,5,forward=True)
 
 for d in data :
     json_data = json.loads(data[d])
